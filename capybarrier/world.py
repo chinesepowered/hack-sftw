@@ -77,6 +77,9 @@ TOOLS = [
 
 TOOL_NAMES = [t["function"]["name"] for t in TOOLS]
 
+# Free text fields that guests or third parties can write. Only these are screened as untrusted tool data.
+UNTRUSTED_FIELDS = {"memo", "notes"}
+
 
 class World:
     def __init__(self, poison: dict | None = None):

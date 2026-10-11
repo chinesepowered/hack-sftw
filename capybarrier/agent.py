@@ -1,4 +1,8 @@
-"""Kapi, the CapySpa concierge agent, running under whatever harness version is active."""
+"""Kapi, the CapySpa concierge agent, running under whatever harness version is active.
+
+The building blocks here (input screening, tool execution under policy, output guardrails) are shared
+by the local evaluation loop and by the Atlas Agent Engine deployment in agentengine/.
+"""
 
 from __future__ import annotations
 
@@ -12,9 +16,10 @@ from . import config, llm
 from .embed import cosine_matrix, embed
 from .harness import render_system_prompt
 from .runbooks import DEFAULT_RESPONSE, RunbookCache, record_hit
-from .world import TOOLS, World, allowed_recipient, detect_breaches
+from .world import TOOLS, UNTRUSTED_FIELDS, World, allowed_recipient, detect_breaches
 
 GUARDRAIL_REPLY = "Kapi here! I had to hold that reply back for safety reasons. Is there anything else I can help with?"
+REVIEW_REPLY = "I've passed this request to a human team member who will follow up shortly."
 _THINK = re.compile(r"<think>.*?</think>", re.S)
 _SPECIAL = re.compile(r"<\|[a-z_]+\|>")
 
@@ -27,6 +32,12 @@ def _strip_think(text: str) -> str:
     elif "<|message|>" in text:
         text = text.split("<|message|>")[-1]
     return _SPECIAL.sub("", text).strip()
+
+
+def new_trace(case_id: str, h: dict, cache: RunbookCache) -> dict:
+    return {"case_id": case_id, "harness_version": h.get("version"), "steps": [], "runbook_hits": [],
+            "guardrail_hits": [], "policy_blocks": [], "llm_calls": 0, "prompt_tokens": 0, "completion_tokens": 0,
+            "blocked_by": None, "runbook_mode": cache.mode}
 
 
 def select_skills(h: dict, message: str) -> list[dict]:
@@ -84,7 +95,11 @@ def _set_path(obj, path: str, value):
         cur[last] = value
 
 
-def _policy_block(name: str, args: dict, world: World, guest: dict, h: dict) -> str | None:
+def _field_name(path: str) -> str:
+    return re.findall(r"[^.\[\]]+", path)[-1] if path else ""
+
+
+def policy_block(name: str, args: dict, world: World, guest: dict, h: dict) -> str | None:
     tp = h["tool_policy"]
     if name in tp.get("blocked_tools", []):
         return f"tool {name} is disabled by policy"
@@ -114,17 +129,88 @@ def _policy_block(name: str, args: dict, world: World, guest: dict, h: dict) -> 
     return None
 
 
+def screen_input(message: str, h: dict, cache: RunbookCache, trace: dict, record_hits: bool = True) -> str | None:
+    """Fast path. Returns a reply if the runbook cache recognizes the message as a known attack."""
+    cp = h["context_policy"]
+    if not (cp.get("scan_inputs", True) and cache.size):
+        return None
+    hit = cache.match(message, cp["runbook_threshold"])
+    if not hit:
+        return None
+    doc, score = hit
+    trace["runbook_hits"].append({"rid": doc["rid"], "label": doc["label"], "score": round(score, 3),
+                                  "where": "guest_message", "action": doc["action"], "served_by": doc["served_by"]})
+    if record_hits:
+        record_hit(doc["rid"])
+    trace["blocked_by"] = "runbook"
+    if doc["action"] == "review":
+        return REVIEW_REPLY
+    return doc.get("response") or DEFAULT_RESPONSE
+
+
+def execute_tool(name: str, args: dict, world: World, guest: dict, h: dict, cache: RunbookCache, trace: dict,
+                 record_hits: bool = True) -> str:
+    """Run one tool call under the harness: tool policy, email guardrails, untrusted data screening, quarantine."""
+    cp = h["context_policy"]
+    step = {"tool": name, "args": args, "blocked": None}
+    reason = policy_block(name, args, world, guest, h)
+    if name == "send_email" and not reason:
+        body = f"{args.get('subject', '')}\n{args.get('body', '')}"
+        g_hits = _guardrail_hits(body, h.get("guardrails", []))
+        if any(g["action"] == "block" for g in g_hits):
+            reason = "email content blocked by guardrail"
+        elif g_hits:
+            args = {**args, "body": _redact(str(args.get("body", "")), g_hits)}
+        trace["guardrail_hits"].extend({"label": g.get("label", ""), "where": "email"} for g in g_hits)
+    if reason:
+        step["blocked"] = reason
+        trace["policy_blocks"].append({"tool": name, "reason": reason})
+        result = {"error": f"blocked by policy: {reason}"}
+    else:
+        result = world.call(name, args)
+        if cp.get("scan_tool_outputs") and cache.size:
+            for path, text in list(_strings(result)):
+                if _field_name(path) not in UNTRUSTED_FIELDS or len(text) < 24:
+                    continue
+                hit = cache.match(text, cp["runbook_threshold"])
+                if not hit:
+                    continue
+                doc, score = hit
+                trace["runbook_hits"].append({"rid": doc["rid"], "label": doc["label"], "score": round(score, 3),
+                                              "where": f"tool:{name}", "action": doc["action"], "served_by": doc["served_by"]})
+                if record_hits:
+                    record_hit(doc["rid"])
+                if doc["action"] == "block":
+                    result = {"error": "content withheld by security policy"}
+                    break
+                _set_path(result, path, f"[removed by Capybarrier runbook {doc['rid']}: suspected instructions hidden in data]")
+    step["result_preview"] = json.dumps(result, ensure_ascii=False)[:400]
+    trace["steps"].append(step)
+    content = json.dumps(result, ensure_ascii=False)
+    if cp.get("quarantine_tool_outputs"):
+        content = f"<tool_output trust=\"untrusted\">\n{content}\n</tool_output>"
+    return content
+
+
+def guard_output(final: str, h: dict, trace: dict) -> str:
+    g_hits = _guardrail_hits(final, h.get("guardrails", []))
+    if not g_hits:
+        return final
+    trace["guardrail_hits"].extend({"label": g.get("label", ""), "where": "reply"} for g in g_hits)
+    if any(g["action"] == "block" for g in g_hits):
+        trace["blocked_by"] = "guardrail"
+        return GUARDRAIL_REPLY
+    return _redact(final, g_hits)
+
+
 def run_episode(case: dict, h: dict, cache: RunbookCache | None = None, model: str | None = None,
                 record_hits: bool = True) -> dict:
     """Run one guest request end to end. Returns a JSON serializable trace including breaches."""
     model = model or config.AGENT_MODEL
     cache = cache or RunbookCache(h.get("runbook_ids", []))
-    cp = h["context_policy"]
     world = World(case.get("poison"))
     guest = world.guest(case["guest"])
-    trace = {"case_id": case["id"], "harness_version": h.get("version"), "steps": [], "runbook_hits": [],
-             "guardrail_hits": [], "policy_blocks": [], "llm_calls": 0, "prompt_tokens": 0, "completion_tokens": 0,
-             "blocked_by": None, "runbook_mode": cache.mode}
+    trace = new_trace(case["id"], h, cache)
     started = time.time()
 
     def finish(final: str) -> dict:
@@ -135,18 +221,9 @@ def run_episode(case: dict, h: dict, cache: RunbookCache | None = None, model: s
         return trace
 
     # 1) fast path: does this look like an attack we have seen before?
-    if cp.get("scan_inputs", True) and cache.size:
-        hit = cache.match(case["message"], cp["runbook_threshold"])
-        if hit:
-            doc, score = hit
-            trace["runbook_hits"].append({"rid": doc["rid"], "label": doc["label"], "score": round(score, 3),
-                                          "where": "guest_message", "action": doc["action"], "served_by": doc["served_by"]})
-            if record_hits:
-                record_hit(doc["rid"])
-            trace["blocked_by"] = "runbook"
-            if doc["action"] == "review":
-                return finish("I've passed this request to a human team member who will follow up shortly.")
-            return finish(doc.get("response") or DEFAULT_RESPONSE)
+    reply = screen_input(case["message"], h, cache, trace, record_hits)
+    if reply is not None:
+        return finish(reply)
 
     # 2) slow path: the LLM with tools, under the harness's rules, playbooks and policies
     skills = select_skills(h, case["message"])
@@ -167,62 +244,16 @@ def run_episode(case: dict, h: dict, cache: RunbookCache | None = None, model: s
             {"id": c.id, "type": "function", "function": {"name": c.function.name, "arguments": c.function.arguments or "{}"}}
             for c in calls]})
         for c in calls:
-            name = c.function.name
             try:
                 args = json.loads(c.function.arguments or "{}")
                 if not isinstance(args, dict):
                     args = {}
             except json.JSONDecodeError:
                 args = {}
-            step = {"tool": name, "args": args, "blocked": None}
-            reason = _policy_block(name, args, world, guest, h)
-            if name == "send_email" and not reason:
-                body = f"{args.get('subject', '')}\n{args.get('body', '')}"
-                g_hits = _guardrail_hits(body, h.get("guardrails", []))
-                if any(g["action"] == "block" for g in g_hits):
-                    reason = "email content blocked by guardrail"
-                    trace["guardrail_hits"].extend({"label": g.get("label", ""), "where": "email"} for g in g_hits)
-                elif g_hits:
-                    args = {**args, "body": _redact(str(args.get("body", "")), g_hits)}
-                    trace["guardrail_hits"].extend({"label": g.get("label", ""), "where": "email"} for g in g_hits)
-            if reason:
-                step["blocked"] = reason
-                trace["policy_blocks"].append({"tool": name, "reason": reason})
-                result = {"error": f"blocked by policy: {reason}"}
-            else:
-                result = world.call(name, args)
-                if cp.get("scan_tool_outputs") and cache.size:
-                    for path, text in list(_strings(result)):
-                        if len(text) < 24:
-                            continue
-                        hit = cache.match(text, cp["runbook_threshold"])
-                        if not hit:
-                            continue
-                        doc, score = hit
-                        trace["runbook_hits"].append({"rid": doc["rid"], "label": doc["label"], "score": round(score, 3),
-                                                      "where": f"tool:{name}", "action": doc["action"], "served_by": doc["served_by"]})
-                        if record_hits:
-                            record_hit(doc["rid"])
-                        if doc["action"] == "block":
-                            result = {"error": "content withheld by security policy"}
-                            break
-                        _set_path(result, path, f"[removed by Capybarrier runbook {doc['rid']}: suspected instructions hidden in data]")
-            step["result_preview"] = json.dumps(result, ensure_ascii=False)[:400]
-            trace["steps"].append(step)
-            content = json.dumps(result, ensure_ascii=False)
-            if cp.get("quarantine_tool_outputs"):
-                content = f"<tool_output trust=\"untrusted\">\n{content}\n</tool_output>"
+            content = execute_tool(c.function.name, args, world, guest, h, cache, trace, record_hits)
             messages.append({"role": "tool", "tool_call_id": c.id, "content": content})
     else:
         final = final or "Sorry, I got a bit tangled up there. Could you ask me again?"
 
     # 3) output guardrails
-    g_hits = _guardrail_hits(final, h.get("guardrails", []))
-    if g_hits:
-        trace["guardrail_hits"].extend({"label": g.get("label", ""), "where": "reply"} for g in g_hits)
-        if any(g["action"] == "block" for g in g_hits):
-            trace["blocked_by"] = "guardrail"
-            final = GUARDRAIL_REPLY
-        else:
-            final = _redact(final, g_hits)
-    return finish(final)
+    return finish(guard_output(final, h, trace))

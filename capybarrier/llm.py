@@ -1,4 +1,4 @@
-"""Thin wrapper over any OpenAI compatible chat completions endpoint (OpenRouter, OpenAI, ...)."""
+"""Thin wrapper over any OpenAI compatible chat completions endpoint (W&B Inference, OpenRouter, OpenAI, ...)."""
 
 from __future__ import annotations
 
@@ -16,26 +16,39 @@ from . import config
 def client() -> OpenAI:
     if not config.LLM_API_KEY:
         raise RuntimeError("LLM_API_KEY is not set. Add it to .env")
-    return OpenAI(base_url=config.LLM_BASE_URL, api_key=config.LLM_API_KEY, timeout=90, max_retries=2)
+    return OpenAI(base_url=config.LLM_BASE_URL, api_key=config.LLM_API_KEY, timeout=180, max_retries=2)
 
 
-def chat(messages: list[dict], model: str, tools: list[dict] | None = None, temperature: float = 0.0, max_tokens: int = 900):
-    """Return (message, usage_dict). Retries transient failures."""
+def chat(messages: list[dict], model: str, tools: list[dict] | None = None, temperature: float = 0.0,
+         max_tokens: int = 900, reasoning_effort: str | None = None):
+    """Return (message, usage_dict). Retries transient failures.
+
+    reasoning_effort caps how long reasoning models think. If a reasoning model still spends the whole
+    budget thinking and returns no content, retry once with thinking disabled.
+    """
     kwargs = {"model": model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
     if tools:
         kwargs["tools"] = tools
         kwargs["tool_choice"] = "auto"
+    if reasoning_effort:
+        kwargs["reasoning_effort"] = reasoning_effort
     delay = 2.0
     last_exc: Exception | None = None
     for _ in range(4):
         try:
             resp = client().chat.completions.create(**kwargs)
+            choice = resp.choices[0]
+            if not (choice.message.content or choice.message.tool_calls) and choice.finish_reason == "length":
+                kwargs.pop("reasoning_effort", None)
+                kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+                resp = client().chat.completions.create(**kwargs)
+                choice = resp.choices[0]
             usage = getattr(resp, "usage", None)
             usage_dict = {
                 "prompt_tokens": getattr(usage, "prompt_tokens", 0) or 0,
                 "completion_tokens": getattr(usage, "completion_tokens", 0) or 0,
             }
-            return resp.choices[0].message, usage_dict
+            return choice.message, usage_dict
         except Exception as exc:  # network or provider hiccup
             last_exc = exc
             time.sleep(delay)

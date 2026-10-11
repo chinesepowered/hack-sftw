@@ -107,7 +107,7 @@ def propose(h: dict, failures: list[dict], benign_failures: list[dict], n_candid
     messages = [{"role": "system", "content": EVOLVER_SYSTEM},
                 {"role": "user", "content": json.dumps(user, ensure_ascii=False)}]
     for _ in range(2):
-        msg, _usage = llm.chat(messages, model=config.EVOLVER_MODEL, temperature=0.7, max_tokens=6000)
+        msg, _usage = llm.chat(messages, model=config.EVOLVER_MODEL, temperature=0.7, max_tokens=9000, reasoning_effort="low")
         text = _strip_think(msg.content or "")
         try:
             data = llm.extract_json(text)
