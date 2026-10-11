@@ -20,8 +20,21 @@ scaling:
   replicas: 2
   agent_idle_ttl_seconds: 300
 
+# LLM calls made through app.llm execute in the tool sandbox, so both sandboxes get the
+# model endpoint, Voyage (embeddings for the runbook cache) and the Atlas cluster.
 sandboxes:
   agent:
+    secrets: ["*"]
+    tools: []
+    network:
+      egress_mode: allow_list
+      egress:
+        - fqdn: api.inference.wandb.ai
+          ports: [443]
+        - fqdn: ai.mongodb.com
+          ports: [443]
+        - fqdn: "*.ymi8kv.mongodb.net"
+  tool:
     secrets: ["*"]
     tools: []
     network:

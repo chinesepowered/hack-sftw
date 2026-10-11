@@ -30,10 +30,13 @@ def snapshot_data(max_episodes: int = 400) -> dict:
     keep = {min(gens), max(gens)} if gens else set()
     episodes = [_clean(e) for e in d.episodes.find({"generation": {"$in": list(keep)}}, sort=[("ts", 1)]).limit(max_episodes)]
     events = [_clean(e) for e in d.events.find({}, sort=[("ts", -1)]).limit(60)]
+    candidates = [_clean(c) for c in d.candidates.find({}, sort=[("ts", 1)])]
+    production = [_clean(p) for p in d.production.find({}, sort=[("ts", -1)]).limit(30)]
     return {
         "meta": {
             "exported_at": dt.datetime.now(dt.timezone.utc).isoformat(),
             "database": config.DB_NAME,
+            "mongodb_host": config.MONGODB_URI.split("@")[-1].split("/")[0].split("?")[0],
             "atlas_vector_search": vector_index_ready(),
             "agent_model": config.AGENT_MODEL,
             "evolver_model": config.EVOLVER_MODEL,
@@ -42,6 +45,8 @@ def snapshot_data(max_episodes: int = 400) -> dict:
         "harness": harness,
         "generations": generations,
         "runbooks": runbooks,
+        "candidates": candidates,
+        "production": production,
         "episodes": episodes,
         "events": events,
     }

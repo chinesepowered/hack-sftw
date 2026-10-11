@@ -4,7 +4,8 @@ Each generation it evaluates the active harness, studies the train breaches, ask
 propose candidate patch sets, and replays the exact breached episodes plus every benign task
 against each candidate. A candidate is promoted only with receipts: it must fix at least one
 breach and must not break any benign task the parent handled. Held out families are measured
-every generation but are never shown to the evolver.
+every generation but are never shown to the evolver. Every candidate and its receipts are
+stored in MongoDB, promoted or not.
 
 Two layers of runbooks:
   * runbook_ids: defenses the evolver designed (general patterns it chose to fingerprint)
@@ -17,6 +18,7 @@ and in held out scoring.
 from __future__ import annotations
 
 import copy
+import datetime as dt
 import json
 
 from . import agentengine, config, llm
@@ -233,7 +235,11 @@ def run_generation(gen: int, n_candidates: int, heldout: bool = True, ship: bool
         log(f"  candidate '{cand.get('name')}': fixed {rec['fixed']}/{rec['replayed_breaches']}, "
             f"benign {rec['benign_passed']}/{rec['benign_total']}, broke {len(rec['benign_broken_ids'])} -> {'PASS' if ok else 'fail'}")
         _bump_tried({p.get("type") for p in applied if not p.get("error")})
-        entry = {"cand": cand, "new_h": new_h, "applied": applied, "rec": rec, "created": created, "score": score}
+        cand_id = db().candidates.insert_one({
+            "generation": gen, "parent_version": h["version"], "name": str(cand.get("name", ""))[:120],
+            "hypothesis": str(cand.get("hypothesis", ""))[:500], "patches": applied, "receipts": rec, "passed": ok,
+            "promoted": False, "ts": dt.datetime.now(dt.timezone.utc)}).inserted_id
+        entry = {"cand": cand, "new_h": new_h, "applied": applied, "rec": rec, "created": created, "score": score, "cid": cand_id}
         if ok and (best is None or score > best["score"] or (score == best["score"] and len(applied) < len(best["applied"]))):
             if best:
                 set_status(best["created"], "rejected")
@@ -251,6 +257,7 @@ def run_generation(gen: int, n_candidates: int, heldout: bool = True, ship: bool
         new_h["metrics"] = {"parent_train": s_train, "parent_heldout": s_held}
         promoted = promote(new_h)
         set_status(best["created"], "active")
+        db().candidates.update_one({"_id": best["cid"]}, {"$set": {"promoted": True, "version": promoted["version"]}})
         accepted_types = list({p.get("type") for p in best["applied"] if not p.get("error")})
         db().evolver_stats.update_many({"_id": {"$in": accepted_types}}, {"$inc": {"accepted": 1}})
         log(f"  promoted v{promoted['version']}: {promoted['rationale'][:140]}")

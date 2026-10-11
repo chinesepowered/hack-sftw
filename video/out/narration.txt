@@ -1,0 +1,1 @@
+[intro] Meet Kapi, the friendly concierge at CapySpa, a capybara hot spring resort. Kapi books massages, issues refunds and sends emails for guests. And like every AI agent in production, Kapi is under attack.
