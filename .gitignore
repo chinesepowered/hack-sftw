@@ -1,0 +1,18 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# local artifacts
+.DS_Store
+video/build/
+video/out/*.wav
+video/out/*.mp3
+*.log

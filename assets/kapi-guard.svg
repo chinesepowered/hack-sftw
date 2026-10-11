@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" role="img" aria-label="Kapi the capybara (guard)">
+  <defs>
+    <radialGradient id="furGrad" cx="45%" cy="30%" r="80%">
+      <stop offset="0%" stop-color="#cc966b"/>
+      <stop offset="100%" stop-color="#b98258"/>
+    </radialGradient>
+    <radialGradient id="yuzuGrad" cx="38%" cy="32%" r="75%">
+      <stop offset="0%" stop-color="#ffe88a"/>
+      <stop offset="100%" stop-color="#ffbf1f"/>
+    </radialGradient>
+    <linearGradient id="shieldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5fd39b"/>
+      <stop offset="100%" stop-color="#3aa776"/>
+    </linearGradient>
+    <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9ee0ee"/>
+      <stop offset="100%" stop-color="#5bb8d4"/>
+    </linearGradient>
+    <clipPath id="tubClip"><rect x="24" y="250" width="372" height="160" rx="46"/></clipPath>
+  </defs>
+  <ellipse cx="210" cy="394" rx="140" ry="14" fill="#000" opacity="0.08"/>
+  <ellipse cx="150" cy="380" rx="34" ry="18" fill="#9a6640"/>
+  <ellipse cx="270" cy="380" rx="34" ry="18" fill="#9a6640"/>
+  <path d="M56 300 C52 196 104 126 210 126 C316 126 368 196 364 300 C361 364 302 390 210 390 C118 390 59 364 56 300 Z" fill="url(#furGrad)"/>
+  <ellipse cx="124" cy="144" rx="18" ry="15" fill="#9a6640" transform="rotate(-25 124 144)"/>
+  <ellipse cx="296" cy="144" rx="18" ry="15" fill="#9a6640" transform="rotate(25 296 144)"/>
+  <ellipse cx="126" cy="147" rx="8" ry="6" fill="#e7a98c" transform="rotate(-25 126 147)"/>
+  <ellipse cx="294" cy="147" rx="8" ry="6" fill="#e7a98c" transform="rotate(25 294 147)"/>
+  <rect x="126" y="204" width="168" height="114" rx="57" fill="#dcae84"/>
+
+  <ellipse cx="158" cy="190" rx="10" ry="12" fill="#3b2619"/>
+  <ellipse cx="262" cy="190" rx="10" ry="12" fill="#3b2619"/>
+  <circle cx="161.5" cy="185.5" r="4" fill="#fff"/>
+  <circle cx="265.5" cy="185.5" r="4" fill="#fff"/>
+  <circle cx="155" cy="195" r="1.8" fill="#fff"/>
+  <circle cx="259" cy="195" r="1.8" fill="#fff"/>
+  <path d="M144 170 q 14 -8 28 -2" stroke="#3b2619" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M248 168 q 14 -6 28 2" stroke="#3b2619" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <rect x="170" y="220" width="80" height="30" rx="15" fill="#3b2619"/>
+  <ellipse cx="190" cy="228" rx="8" ry="4" fill="#ffffff" opacity="0.35"/>
+  <path d="M210 250 v 16 M210 266 q -14 14 -26 2 M210 266 q 14 14 26 2" stroke="#3b2619" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="112" cy="238" rx="22" ry="12" fill="#f7a6a1" opacity="0.8"/>
+  <ellipse cx="308" cy="238" rx="22" ry="12" fill="#f7a6a1" opacity="0.8"/>
+  <path d="M190 134 q 8 -16 16 0 q 8 -16 16 0" stroke="#9a6640" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <ellipse cx="150" cy="338" rx="26" ry="20" fill="#9a6640"/>
+  <ellipse cx="270" cy="338" rx="26" ry="20" fill="#9a6640"/>
+
+  <g>
+    <circle cx="212" cy="100" r="26" fill="url(#yuzuGrad)" stroke="#e9a400" stroke-width="2.5"/>
+    <circle cx="202.9" cy="90.9" r="5.72" fill="#fff6c8" opacity="0.85"/>
+    <circle cx="219.8" cy="103.9" r="1.8" fill="#e9a400" opacity="0.6"/>
+    <circle cx="209.4" cy="111.7" r="1.8" fill="#e9a400" opacity="0.6"/>
+    <circle cx="226.3" cy="93.5" r="1.6" fill="#e9a400" opacity="0.6"/>
+    <path d="M212 76 q 2 -9 -1 -14" stroke="#6b8f3a" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <path d="M213 68 c 10 -14 30 -12 34 -4 c -10 10 -26 12 -34 4 z" fill="#7cc35f" stroke="#5a9e45" stroke-width="2"/>
+  </g>
+
+  <g transform="translate(330 318) rotate(10) scale(0.9)">
+    <path d="M0 -58 L50 -40 C50 10 30 40 0 58 C-30 40 -50 10 -50 -40 Z" fill="url(#shieldGrad)" stroke="#2f7d5b" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M-20 -2 l 14 14 l 28 -30" stroke="#ffffff" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
