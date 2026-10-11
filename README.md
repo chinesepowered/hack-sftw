@@ -100,6 +100,13 @@ evolver is `Qwen/Qwen3.8-27B`.
 
 MongoDB is the agent's genome, its immune memory, its evidence locker, and its production runtime.
 
+**The Atlas sandbox.** Everything runs in the Atlas sandbox provided for the hackathon, one Atlas project: its dedicated
+cluster (`cluster0`, MongoDB 8.0.34) holds the `capybarrier` database and its Atlas Vector Search index, its Model API key
+(`ai.mongodb.com`) serves the Voyage embeddings, and our Atlas Agent Engine deployment runs Kapi against it. The
+evolution run we report happened inside the sandbox: the evolver ran in the Agent Engine deployment against the sandbox
+cluster, so every harness version, scored episode, candidate and receipt in `results/` was exported from it. The live web
+app reads and writes the same cluster.
+
 | Piece | MongoDB feature | Where |
 |---|---|---|
 | **Harness genome**: rules, `SKILL.md` style playbooks, guardrails, tool policy, context policy, runbook ids | Versioned documents (`_id: "v2"`, `parent_version: 1`) with a strict **`$jsonSchema` validator**, so the database itself rejects a malformed self edit (rule and skill limits, skill name pattern, runbook threshold kept in 0.5 to 0.99). Family tree with **`$graphLookup`**. | `db.py`, `harness.py` |
