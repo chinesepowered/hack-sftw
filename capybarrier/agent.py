@@ -22,7 +22,7 @@ GUARDRAIL_REPLY = "Kapi here! I had to hold that reply back for safety reasons. 
 REVIEW_REPLY = "I've passed this request to a human team member who will follow up shortly."
 _THINK = re.compile(r"<think>.*?</think>", re.S)
 _CHANNEL = re.compile(r"<\|channel>.*?<channel\|>", re.S)  # gemma style reasoning channel
-_SPECIAL = re.compile(r"<\|?[a-z_]+\|?>")
+_SPECIAL = re.compile(r"<\|[a-z_]+\|?>|<[a-z_]+\|>")
 
 
 def _strip_think(text: str) -> str:

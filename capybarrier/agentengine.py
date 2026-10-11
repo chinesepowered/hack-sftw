@@ -168,11 +168,11 @@ def push_policies(h: dict, log=print) -> list[str]:
     wanted = {"AUTHORIZED_TOOLS": allowed, "MAX_TOOL_CALLS_PER_EXECUTION": 12, "MAX_LLM_CALLS_PER_EXECUTION": 10}
     path = f"{project_path()}/policies"
     existing = _req("GET", path).json().get("policies", [])
-    by_type = {p.get("policy_type") or p.get("type"): p for p in existing}
+    by_type = {p.get("type"): p for p in existing}
     done = []
     for ptype, value in wanted.items():
-        body = {"policy_type": ptype, "value": value, "enabled": True,
-                "description": f"Managed by Capybarrier, harness v{h.get('version')}"}
+        body = {"type": ptype, "enabled": True, "description": f"Managed by Capybarrier, harness v{h.get('version')}",
+                **({"string_list": value} if isinstance(value, list) else {"int_value": value})}
         if ptype in by_type:
             pid = by_type[ptype].get("id") or by_type[ptype].get("_id")
             _req("PUT", f"{path}/{pid}", json=body)
@@ -203,3 +203,18 @@ def _git_sha() -> str:
 
 def describe() -> str:
     return json.dumps({"project": config.AE_PROJECT_ID, "workspace": workspace_id()}, indent=2)
+
+
+def admin(command: str, session: str = "capybarrier-ops", timeout: int = 180) -> dict:
+    """Run an operator command (/setup, /evolve N, /status, /export, /reset) inside the deployed agent.
+
+    All commands share one session id, so they land in the same sandbox as the background evolution job.
+    """
+    payload = {"message": command, "admin_token": os.getenv("CAPY_ADMIN_TOKEN", "")}
+    resp = _req("POST", f"{project_path()}/workspaces/{workspace_id()}/invoke", json=payload,
+                headers={"X-Session-ID": session}, timeout=timeout)
+    text = resp.json().get("response", "")
+    try:
+        return json.loads(text)
+    except (TypeError, json.JSONDecodeError):
+        return {"raw": text}

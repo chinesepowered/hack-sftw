@@ -205,7 +205,8 @@ def build_agent():
         if reply is not None:
             _log(state, reply)
             return {"messages": [AIMessage(content=reply)], "blocked_by": "runbook", "harness_version": _ctx["h"]["version"]}
-        return {"harness_version": _ctx["h"]["version"]}
+        # state persists across turns of a session, so clear the previous turn's verdict
+        return {"harness_version": _ctx["h"]["version"], "blocked_by": ""}
 
     def agent(state: KapiState):
         h, guest = _ctx["h"], _ctx["guest"]
