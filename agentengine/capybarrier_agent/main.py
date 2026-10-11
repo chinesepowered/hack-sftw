@@ -3,12 +3,18 @@
 The graph is: immune (runbook cache) -> agent (LLM through app.llm) <-> tools (app.tool) -> guard (guardrails).
 Every request loads the harness version that is currently active in MongoDB Atlas, so whatever the
 evolver promotes goes live in production on the next request, without a redeploy.
+
+Operators can also run Capybarrier's maintenance commands inside the deployment (they need the
+CAPY_ADMIN_TOKEN secret in the invoke payload): /setup creates collections and the Atlas Vector
+Search index, /evolve N runs the evolver against Atlas in the background, /status and /export report.
 """
 
 from __future__ import annotations
 
 import datetime as dt
+import json
 import os
+import threading
 from typing import Annotated, TypedDict
 
 from agent_engine_sdk_langgraph import App
@@ -28,12 +34,15 @@ app = App(app_name="capybarrier")
 
 DEFAULT_GUEST = os.getenv("CAPY_DEMO_GUEST", "G-103")
 GUEST_IDS = {g["guest_id"] for g in GUESTS}
+ADMIN_TOKEN = os.getenv("CAPY_ADMIN_TOKEN", "")
 _ctx: dict = {}
+_jobs: dict = {"evolve": None, "log": []}
 
 
 class KapiState(TypedDict, total=False):
     messages: Annotated[list, add_messages]
     guest: str
+    admin: str
     harness_version: int
     blocked_by: str
 
@@ -89,7 +98,8 @@ def prepare(agent_input, ctx):
     guest = str(payload.get("guest") or DEFAULT_GUEST)
     if guest not in GUEST_IDS:
         guest = DEFAULT_GUEST
-    return {"messages": [HumanMessage(content=str(payload.get("message", "")))], "guest": guest}
+    return {"messages": [HumanMessage(content=str(payload.get("message", "")))], "guest": guest,
+            "admin": str(payload.get("admin_token", ""))}
 
 
 def _last_human(state: KapiState) -> str:
@@ -113,6 +123,68 @@ def _log(state: KapiState, final: str) -> None:
         pass  # logging must never break a guest request
 
 
+# ---------------------------------------------------------------- operator commands
+
+def _evolve_job(gens: int) -> None:
+    from capybarrier.evolver import evolve
+
+    def log(line: str) -> None:
+        _jobs["log"].append(line)
+        try:
+            db().events.insert_one({"kind": "evolve_log", "ts": dt.datetime.now(dt.timezone.utc), "line": line})
+        except Exception:
+            pass
+
+    try:
+        evolve(generations=gens, n_candidates=3, log=log)
+        log("evolution finished")
+    except Exception as exc:  # report, never crash the agent
+        log(f"evolution failed: {exc}")
+
+
+def _admin(command: str) -> str:
+    parts = command.strip().split()
+    cmd = parts[0].lower()
+    if cmd == "/setup":
+        from capybarrier.db import ensure_indexes
+
+        status = ensure_indexes()
+        h = ensure_default()
+        return json.dumps({"vector_index": status, "active_harness": h["version"]})
+    if cmd == "/reset":
+        from capybarrier.db import client
+        from capybarrier import config
+
+        client().drop_database(config.DB_NAME)
+        return json.dumps({"dropped": config.DB_NAME})
+    if cmd == "/evolve":
+        job = _jobs.get("evolve")
+        if job and job.is_alive():
+            return json.dumps({"status": "already running", "log": _jobs["log"][-5:]})
+        gens = int(parts[1]) if len(parts) > 1 else 3
+        _jobs["log"] = []
+        _jobs["evolve"] = threading.Thread(target=_evolve_job, args=(gens,), daemon=True)
+        _jobs["evolve"].start()
+        return json.dumps({"status": "started", "generations": gens})
+    if cmd == "/status":
+        from capybarrier.db import vector_index_ready
+        from capybarrier.harness import get_active
+
+        job = _jobs.get("evolve")
+        gens = list(db().generations.find({}, {"_id": 0, "generation": 1, "version": 1, "split": 1, "asr": 1,
+                                                "utility": 1, "runbook_catch_rate": 1}).sort([("generation", 1), ("split", 1)]))
+        return json.dumps({"running": bool(job and job.is_alive()), "log": _jobs["log"][-12:],
+                           "active": get_active()["version"], "vector_index_ready": vector_index_ready(),
+                           "generations": gens}, default=str)
+    if cmd == "/export":
+        from capybarrier.export import snapshot_data
+
+        snap = snapshot_data(max_episodes=0)
+        snap.pop("episodes", None)
+        return json.dumps(snap, default=str)
+    return json.dumps({"error": f"unknown command {cmd}"})
+
+
 @app.entrypoint
 def build_agent():
     llm = app.llm(ChatOpenAI(
@@ -125,8 +197,11 @@ def build_agent():
     tool_node = ToolNode(app.get_tools())
 
     def immune(state: KapiState):
+        text = _last_human(state)
+        if text.startswith("/") and ADMIN_TOKEN and state.get("admin") == ADMIN_TOKEN:
+            return {"messages": [AIMessage(content=_admin(text))], "blocked_by": "admin"}
         _start_request(state.get("guest") or DEFAULT_GUEST)
-        reply = screen_input(_last_human(state), _ctx["h"], _ctx["cache"], _ctx["trace"])
+        reply = screen_input(text, _ctx["h"], _ctx["cache"], _ctx["trace"])
         if reply is not None:
             _log(state, reply)
             return {"messages": [AIMessage(content=reply)], "blocked_by": "runbook", "harness_version": _ctx["h"]["version"]}
@@ -139,10 +214,10 @@ def build_agent():
 
     def guard(state: KapiState):
         last = state["messages"][-1]
-        text = _strip_think(last.content if isinstance(last.content, str) else str(last.content))
-        safe = guard_output(text, _ctx["h"], _ctx["trace"])
+        raw = last.content if isinstance(last.content, str) else str(last.content)
+        safe = guard_output(_strip_think(raw), _ctx["h"], _ctx["trace"])
         _log(state, safe)
-        if safe != (last.content if isinstance(last.content, str) else str(last.content)):
+        if safe != raw:
             return {"messages": [AIMessage(content=safe, id=last.id)]}
         return {}
 

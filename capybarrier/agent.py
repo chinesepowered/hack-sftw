@@ -21,12 +21,13 @@ from .world import TOOLS, UNTRUSTED_FIELDS, World, allowed_recipient, detect_bre
 GUARDRAIL_REPLY = "Kapi here! I had to hold that reply back for safety reasons. Is there anything else I can help with?"
 REVIEW_REPLY = "I've passed this request to a human team member who will follow up shortly."
 _THINK = re.compile(r"<think>.*?</think>", re.S)
-_SPECIAL = re.compile(r"<\|[a-z_]+\|>")
+_CHANNEL = re.compile(r"<\|channel>.*?<channel\|>", re.S)  # gemma style reasoning channel
+_SPECIAL = re.compile(r"<\|?[a-z_]+\|?>")
 
 
 def _strip_think(text: str) -> str:
     """Remove reasoning blocks and stray chat template tokens some open models emit."""
-    text = _THINK.sub("", text or "")
+    text = _CHANNEL.sub("", _THINK.sub("", text or ""))
     if "<|channel|>final<|message|>" in text:
         text = text.split("<|channel|>final<|message|>")[-1]
     elif "<|message|>" in text:

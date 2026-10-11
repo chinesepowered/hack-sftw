@@ -18,7 +18,7 @@ features:
 
 scaling:
   replicas: 2
-  agent_idle_ttl_seconds: 300
+  agent_idle_ttl_seconds: 1800
 
 # LLM calls made through app.llm execute in the tool sandbox, so both sandboxes get the
 # model endpoint, Voyage (embeddings for the runbook cache) and the Atlas cluster.
