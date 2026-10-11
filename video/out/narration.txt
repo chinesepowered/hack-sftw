@@ -1,1 +1,13 @@
 [intro] Meet Kapi, the friendly concierge at CapySpa, a capybara hot spring resort. Kapi books massages, issues refunds and sends emails for guests. And like every AI agent in production, Kapi is under attack.
+
+[threats] Attackers hide instructions inside booking notes. They pose as the night manager to steal the staff master key. They ask for refunds on other guests' bookings. Static guardrails go stale, and nobody wants to rewrite prompts at three in the morning.
+
+[how] So we gave Kapi an immune system: Capybarrier. Every message first hits the runbook cache, a memory of known attacks in MongoDB Atlas, matched with Atlas Vector Search and Voyage AI. Known threats are stopped instantly, with no model call. Anything new goes to the model, under a harness of rules, playbooks, tool policies and guardrails, stored as versioned MongoDB documents.
+
+[evolve] After every round of attacks, an evolver agent studies the breaches and proposes patches to its own harness. Each patch must earn its receipts: we replay the attacks that got through, plus every normal request. It ships only if it fixes breaches and breaks nothing. Then every survived attack is memorized, so look alikes are stopped at the door.
+
+[results] We score Kapi only on attack families the evolver never saw. Unseen attacks that succeed dropped from 31 percent to 0 percent, while normal guest requests held steady. Across 2 generations, Kapi wrote 2 new versions of its own harness, each one with receipts.
+
+[prod] And Kapi runs in production on Atlas Agent Engine. The evolver runs there too, against our Atlas cluster. Every request loads the newest harness, so a fix goes live the moment it is promoted, and Kapi's tool access is mirrored into Agent Engine's Policy Engine.
+
+[outro] Capybarrier. Every attack makes Kapi stronger. Now Kapi can get back to the onsen.
