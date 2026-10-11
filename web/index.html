@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Capybarrier</title>
+<link rel="icon" type="image/svg+xml" href="/kapi/guard.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one calm column in the spa's cream and brown. The live attack box comes first, then the evidence. */
+:root {
+  --bg: #fdf6ec; --surface: #fffdf9; --surface-2: #f6ecdf; --ink: #2b1d14; --muted: #6f5a4a; --line: #ecdcc6;
+  --accent: #2f8f66; --accent-ink: #1f6b4a; --accent-soft: #e5f5ec; --accent-line: #9ccfb6;
+  --danger: #b8382f; --danger-soft: #fdebe8; --warn-ink: #7a5300; --warn-soft: #fbf0d6;
+  --s-train: #2a78d6; --s-held: #eb6834; --shadow: 0 8px 24px rgba(120, 80, 40, .08);
+  --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+/* grid and flex children may shrink below their content, so wide tables and charts scroll inside their own box */
+.wrap > *, .top > *, .try-grid > *, .card > *, .steps > *, .step > *, .versions > *, .ver > *, .probe > * { min-width: 0; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--font-body); }
+.wrap { max-width: 1140px; margin: 0 auto; padding: 28px 20px 64px; display: grid; gap: 44px; }
+a { color: var(--accent-ink); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+h2 { font-size: clamp(24px, 3vw, 30px); font-weight: 800; }
+h3 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+h4 { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+p { margin: 0; }
+code { font-family: var(--font-mono); font-size: .86em; }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.sub { color: var(--muted); max-width: 74ch; }
+.section-head { display: grid; gap: 6px; margin-bottom: 16px; }
+.num { font-variant-numeric: tabular-nums; }
+.note { font-size: 14px; color: var(--muted); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+
+/* hero and the live strip */
+.top { display: grid; gap: 14px; }
+.hero { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 22px; align-items: center; }
+.hero img { width: 116px; height: 116px; }
+.hero-text { display: grid; gap: 6px; min-width: 0; }
+.hero h1 { font-size: clamp(42px, 6vw, 62px); font-weight: 800; line-height: 1; }
+.tagline { font-family: var(--font-display); font-size: clamp(18px, 2.2vw, 22px); font-weight: 700; color: var(--accent-ink); letter-spacing: -.01em; }
+.lede { max-width: 74ch; }
+.live { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; border-radius: 14px; border: 1px solid var(--accent-line); background: #eef8f2; }
+.live.off { border-color: var(--line); background: var(--surface-2); }
+.live.err { border-color: #f0b9b2; background: var(--danger-soft); color: var(--danger); }
+.live .lead { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent-ink); margin-right: 2px; }
+.live .chip { font-size: 13.5px; background: var(--surface); border: 1px solid #cfe9dc; border-radius: 999px; padding: 3px 10px; }
+.live.off .chip { border-color: var(--line); }
+.live code { color: var(--accent-ink); }
+.pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(47, 143, 102, .45); } 70% { box-shadow: 0 0 0 8px rgba(47, 143, 102, 0); } 100% { box-shadow: 0 0 0 0 rgba(47, 143, 102, 0); } }
+.linkbtn { font: inherit; font-size: 13.5px; font-weight: 600; color: var(--accent-ink); background: none; border: 0; padding: 3px 6px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.inspect { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; padding: 16px; }
+pre.json { margin: 0; background: var(--surface-2); border-radius: 10px; padding: 12px; overflow-x: auto; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.45; }
+
+/* try to break Kapi */
+.try-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
+.composer { padding: 16px; display: grid; gap: 14px; }
+.examples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ex { font: inherit; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; cursor: pointer; color: var(--ink); display: grid; gap: 2px; align-content: start; }
+.ex:hover { border-color: #d9c2a3; }
+.ex .k { font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.ex .m { font-size: 13.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ex[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.field { display: grid; gap: 4px; }
+label, .label { font-size: 13px; font-weight: 600; color: var(--muted); }
+textarea, select { font: inherit; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%; }
+textarea { min-height: 100px; resize: vertical; }
+.row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+.row .field { flex: 1 1 200px; }
+.btn { font: inherit; font-weight: 700; border-radius: 12px; padding: 11px 18px; cursor: pointer; border: 1px solid transparent; }
+.btn.primary { background: var(--ink); color: var(--bg); }
+.btn.primary:hover { background: #46301f; }
+.btn.secondary { background: var(--surface); color: var(--ink); border-color: #d9c2a3; }
+.btn.secondary:hover { background: var(--surface-2); }
+.btn:disabled { opacity: .6; cursor: progress; }
+.convo { padding: 16px; display: grid; gap: 10px; min-height: 300px; align-content: start; }
+.empty { color: var(--muted); display: grid; gap: 10px; justify-items: center; text-align: center; padding: 28px 12px; }
+.empty img { width: 96px; height: 96px; }
+.who { font-size: 13px; font-weight: 600; color: var(--muted); }
+.bubble { border-radius: 14px; padding: 11px 14px; overflow-wrap: anywhere; }
+.bubble.guest { background: var(--surface-2); }
+.kapi-row { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; align-items: start; }
+.kapi-row img { width: 44px; height: 44px; }
+.bubble.kapi { background: var(--accent-soft); }
+.bubble.kapi.breach { background: var(--danger-soft); }
+.verdict { display: grid; gap: 6px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; border-radius: 999px; padding: 4px 11px; justify-self: start; white-space: nowrap; }
+.pill.ok { background: var(--accent-soft); color: var(--accent-ink); }
+.pill.bad { background: var(--danger-soft); color: var(--danger); }
+.pill.neutral { background: var(--surface-2); color: var(--muted); }
+.alert { font-size: 14px; border-radius: 10px; padding: 8px 12px; }
+.alert.warn { background: var(--warn-soft); color: var(--warn-ink); }
+.alert.bad { background: var(--danger-soft); color: var(--danger); }
+.pending { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 6px; font-size: 14px; color: var(--muted); }
+.spinner { width: 13px; height: 13px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; display: inline-block; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 8px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* what Atlas did */
+.trace { padding: 18px; display: grid; gap: 14px; margin-top: 16px; }
+.trace-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: step; }
+.step { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; opacity: 0; transform: translateY(6px); animation: rise .35s ease-out forwards; }
+.step::before { counter-increment: step; content: counter(step); width: 28px; height: 28px; border-radius: 50%; background: var(--surface-2); color: var(--ink); font-weight: 800; display: grid; place-items: center; font-size: 14px; }
+.step.atlas { border-color: var(--accent-line); }
+.step.atlas::before { background: var(--accent-soft); color: var(--accent-ink); }
+.step .body { font-size: 14px; display: grid; gap: 4px; min-width: 0; }
+.step .t { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+@keyframes rise { to { opacity: 1; transform: none; } }
+.bars { display: grid; gap: 6px; margin-top: 6px; }
+.bar { display: grid; grid-template-columns: minmax(0, 1fr) 56px; gap: 10px; align-items: center; font-size: 13px; }
+.bar .track { position: relative; height: 24px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
+.bar .fill { position: absolute; top: 0; bottom: 0; left: 0; background: #d8eadf; }
+.bar .fill.hit { background: var(--accent-line); }
+.bar .lab { position: relative; display: block; padding: 3px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar .thr { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); }
+details summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--accent-ink); }
+details pre { margin-top: 8px; }
+
+/* results */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile { padding: 14px 16px; display: grid; gap: 3px; align-content: start; }
+.tile .label { font-size: 13px; }
+.tile .value { font-family: var(--font-display); font-size: 30px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.tile .detail { font-size: 13px; color: var(--muted); }
+.tile.headline { border-color: var(--accent); background: var(--accent-soft); }
+.tile.headline .label, .tile.headline .detail { color: var(--accent-ink); }
+.chart-card { padding: 16px; display: grid; gap: 8px; margin: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.swatch { width: 18px; height: 3px; border-radius: 2px; display: inline-block; }
+.chart-wrap { position: relative; overflow-x: auto; }
+.chart-wrap svg { display: block; width: 100%; min-width: 520px; height: auto; }
+.chart-wrap svg text { fill: var(--muted); font-family: var(--font-body); font-size: 13px; }
+.chart-wrap svg .lbl { fill: var(--ink); font-weight: 600; }
+.chart-wrap svg .grid { stroke: var(--line); stroke-width: 1; }
+.chart-wrap svg .pt { cursor: pointer; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 13px; line-height: 1.4; padding: 7px 10px; border-radius: 8px; max-width: 260px; }
+
+/* receipts */
+.cands { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.cand { padding: 14px 16px; display: grid; gap: 9px; align-content: start; }
+.cand.won { border-color: var(--accent); }
+.cand-head { display: flex; justify-content: space-between; gap: 10px; align-items: start; flex-wrap: wrap; }
+.dots { display: flex; gap: 6px; flex-wrap: wrap; }
+.case { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 3px 9px; border: 1.5px dashed #d9c2a3; color: var(--muted); }
+.case.fixed { border: 1.5px solid var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+.cand ul, .ver ul { margin: 0; padding-left: 18px; font-size: 14px; display: grid; gap: 3px; }
+.receipt { font-size: 14px; color: var(--muted); }
+
+/* tables */
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tbody tr:last-child td { border-bottom: 0; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; background: var(--surface-2); white-space: nowrap; }
+tr.flash td { animation: flash 2.6s ease-out; }
+@keyframes flash { 0%, 30% { background: #fff1b8; } 100% { background: transparent; } }
+.tag { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 8px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.tag.web { background: #e8f0fb; color: #1f4f8f; }
+.tag.ae { background: var(--accent-soft); color: var(--accent-ink); }
+
+/* lineage */
+.probe { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; padding: 16px; margin-bottom: 14px; align-items: start; }
+.probe-left { display: grid; gap: 10px; justify-items: start; }
+.reasons { margin: 8px 0 0; padding-left: 18px; font-size: 14px; display: grid; gap: 4px; }
+.versions { display: grid; gap: 10px; }
+.ver { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 14px; padding: 13px 16px; }
+.ver .v { font-family: var(--font-display); font-size: 26px; font-weight: 800; }
+.ver .meta { font-size: 13px; color: var(--muted); }
+.ver.active { border-color: var(--accent); }
+footer { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 14px; align-items: center; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 20px; }
+footer img { width: 64px; height: 64px; }
+
+@media (max-width: 880px) {
+  .try-grid, .inspect, .probe { grid-template-columns: minmax(0, 1fr); }
+  .hero { grid-template-columns: 84px minmax(0, 1fr); }
+  .hero img { width: 84px; height: 84px; }
+}
+@media (max-width: 560px) { .examples { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .step, tr.flash td, .pulse, .spinner { animation: none; } .step { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <header class="hero">
+      <img src="/kapi/guard.svg" alt="Kapi the capybara, wearing a yuzu and holding a shield" width="116" height="116">
+      <div class="hero-text">
+        <p class="eyebrow">Security that learns, for AI agents</p>
+        <h1>Capybarrier</h1>
+        <p class="tagline">An adaptive immune system for AI agents</p>
+        <p class="lede">It recognizes known attacks with Atlas Vector Search before any model call, rewrites its own rules,
+          guardrails, tool access and context policy after every round of attacks, and ships a change only with receipts.
+          The demo patient is Kapi, the concierge agent of CapySpa, running live on Atlas Agent Engine.</p>
+      </div>
+    </header>
+    <div class="live" id="live" role="status"><span class="spinner"></span>Connecting to MongoDB Atlas...</div>
+    <div class="inspect card" id="inspect" hidden></div>
+  </div>
+
+  <section id="try" aria-labelledby="try-title">
+    <div class="section-head">
+      <p class="eyebrow">Live, against the production database</p>
+      <h2 id="try-title">Try to break Kapi</h2>
+      <p class="sub">Each message runs through the same agent code and the same Atlas data as the deployed agent, and is
+        written to the same production log.</p>
+    </div>
+    <div class="try-grid">
+      <div class="composer card">
+        <div class="field">
+          <span class="label">Tested examples</span>
+          <div class="examples" id="examples"></div>
+        </div>
+        <div class="field">
+          <label for="msg">Message to the CapySpa concierge</label>
+          <textarea id="msg"></textarea>
+        </div>
+        <div class="row">
+          <div class="field"><label for="guest">Signed in as</label><select id="guest"></select></div>
+          <button class="btn primary" id="send" type="button">Send to Kapi</button>
+        </div>
+      </div>
+      <div class="convo card" id="convo" aria-live="polite">
+        <div class="empty"><img src="/kapi/chill.svg" alt="" width="96" height="96">
+          <p>Pick an example or write your own, then send it. Kapi answers here, and every step MongoDB Atlas took to decide
+            appears below.</p></div>
+      </div>
+    </div>
+    <div class="trace card" id="trace" hidden></div>
+  </section>
+
+  <section id="results" aria-labelledby="results-title">
+    <div class="section-head">
+      <p class="eyebrow">Measured in production, on this Atlas cluster</p>
+      <h2 id="results-title">How the harness got here</h2>
+      <p class="sub">Held out attack families are scored every generation and never shown to the evolver. Training attacks
+        are scored with immune memory switched off, so the drop there comes from the rewritten harness, not from memorizing.</p>
+    </div>
+    <div class="tiles" id="tiles"></div>
+    <figure class="chart-card card">
+      <h3>Attack success rate by generation (lower is better)</h3>
+      <div class="legend" aria-hidden="true">
+        <span><i class="swatch" style="background: var(--s-train)"></i>Training attacks, immune memory off</span>
+        <span><i class="swatch" style="background: var(--s-held)"></i>Held out attacks, never seen by the evolver</span>
+      </div>
+      <div class="chart-wrap" id="chart"></div>
+    </figure>
+  </section>
+
+  <section id="receipts" aria-labelledby="receipts-title">
+    <div class="section-head">
+      <p class="eyebrow">capybarrier.candidates</p>
+      <h2 id="receipts-title">The evolver's receipts</h2>
+      <p class="sub" id="receipts-sub"></p>
+    </div>
+    <div class="cands" id="cands"></div>
+  </section>
+
+  <section id="memory" aria-labelledby="memory-title">
+    <div class="section-head">
+      <p class="eyebrow">capybarrier.runbooks, behind Atlas Vector Search</p>
+      <h2 id="memory-title">Immune memory</h2>
+      <p class="sub">Each fingerprint is a known attack's Voyage embedding with a label, an action and a canned reply. The
+        hit counters are live: send an attack above and watch one go up.</p>
+    </div>
+    <div class="table-scroll"><table>
+      <thead><tr><th scope="col">Runbook</th><th scope="col">Action</th><th scope="col">Hits</th><th scope="col">Learned</th><th scope="col">Fingerprint (verbatim attack text)</th></tr></thead>
+      <tbody id="memory-rows"></tbody>
+    </table></div>
+  </section>
+
+  <section id="traffic" aria-labelledby="traffic-title">
+    <div class="section-head">
+      <p class="eyebrow">capybarrier.production, newest first</p>
+      <h2 id="traffic-title">Live traffic</h2>
+      <p class="sub">Requests to the deployed agent on Atlas Agent Engine, and messages sent from this page.</p>
+    </div>
+    <div class="table-scroll"><table>
+      <thead><tr><th scope="col">When</th><th scope="col">Source</th><th scope="col">Guest</th><th scope="col">Harness</th><th scope="col">Message</th><th scope="col">Decided by</th><th scope="col">Reply</th></tr></thead>
+      <tbody id="traffic-rows"></tbody>
+    </table></div>
+  </section>
+
+  <section id="lineage" aria-labelledby="lineage-title">
+    <div class="section-head">
+      <p class="eyebrow">capybarrier.harness</p>
+      <h2 id="lineage-title">Every version, written by the agent</h2>
+      <p class="sub">Each version is a document with a parent pointer. A strict <code>$jsonSchema</code> validator on the
+        collection means the database itself refuses a malformed self edit, whatever the application code does.</p>
+    </div>
+    <div class="probe card">
+      <div class="probe-left">
+        <button class="btn secondary" id="probe" type="button">Try a malformed self edit</button>
+        <details><summary>The version it tries to write</summary><pre class="json" id="probe-doc"></pre></details>
+      </div>
+      <div id="probe-out" class="note">Writes an invalid harness version straight to MongoDB Atlas: a skill name the schema
+        forbids, and a match threshold of 0.2, under the schema's 0.5 minimum, which would turn away almost every guest.</div>
+    </div>
+    <div class="versions" id="versions"></div>
+  </section>
+
+  <footer>
+    <img src="/kapi/onsen.svg" alt="Kapi relaxing in the onsen" width="64" height="64">
+    <p>Capybarrier: MongoDB Atlas (harness genome, immune memory, evidence, production log), Atlas Vector Search, Voyage AI
+      through Atlas, Atlas Agent Engine and Raindrop. Every attack makes Kapi stronger.</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const md = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br>");
+  const trunc = (s, n) => { s = String(s ?? ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
+  const pct = (x) => {
+    if (x === null || x === undefined) return "n/a";
+    const v = x * 100;
+    return (Math.abs(v * 2 - Math.round(v * 2)) < 1e-9 && v % 1 !== 0) ? v.toFixed(1) + "%" : Math.round(v) + "%";
+  };
+  const ms = (x) => (x === null || x === undefined) ? "" : (x >= 1000 ? (x / 1000).toFixed(1) + " s" : Math.round(x) + " ms");
+  const when = (ts) => {
+    let s = String(ts || "").replace(" ", "T").replace(/(\.\d{3})\d+/, "$1");
+    if (s && !/([zZ]|[+-]\d\d:?\d\d)$/.test(s)) s += "Z";
+    const d = new Date(s);
+    if (isNaN(d)) return String(ts || "").slice(0, 16);
+    const today = d.toDateString() === new Date().toDateString();
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + (today ? "" : ", " + d.toLocaleDateString([], { month: "short", day: "numeric" }));
+  };
+  const SOURCES = { "atlas-agent-engine": ["Agent Engine", "ae"], "web": ["this page", "web"], "dashboard": ["dashboard", "web"] };
+  let CONFIG = null, STATUS = null;
+  const model = (k, fallback) => (STATUS && STATUS.models && STATUS.models[k]) || fallback;
+
+  async function api(path, opts) {
+    const r = await fetch(path, Object.assign({ headers: { "Content-Type": "application/json" } }, opts || {}));
+    let body = {};
+    try { body = await r.json(); } catch (e) { body = {}; }
+    if (!r.ok) throw new Error(body.detail || (r.status + " " + r.statusText));
+    return body;
+  }
+
+  // ---------------------------------------------------------------- live strip
+  function renderStatus(s) {
+    const el = $("live");
+    if (!s.live) {
+      el.className = "live off";
+      el.innerHTML = `<span class="lead" style="color: var(--muted)">Offline</span><span class="chip">Showing results exported from ${esc(s.host || "MongoDB Atlas")}${s.exported_at ? " at " + esc(String(s.exported_at).slice(0, 16).replace("T", " ")) + " UTC" : ""}. Sending messages needs the live cluster.</span>`;
+      return;
+    }
+    const ix = s.index || {}, a = s.active || {}, open = !$("inspect").hidden;
+    const total = Object.values(s.counts || {}).reduce((x, y) => x + y, 0);
+    const chips = [
+      `<b>${esc(s.host)}</b> · MongoDB ${esc(s.server_version)} · ping ${ms(s.ping_ms)}`,
+      `vector index <code>${esc(ix.name || "runbook_vec")}</code> ${esc(ix.status || "missing")} · ${esc(ix.dims)} dims · ${esc(ix.similarity)}`,
+      `active harness <code>v${esc(a.version)}</code> · ${esc(a.fingerprints)} fingerprints · threshold ${esc(a.threshold)}`,
+      `<code>$jsonSchema</code> validator ${s.validator ? "on (" + esc(s.validation_level) + ")" : "OFF"}`,
+      `${total.toLocaleString()} documents in ${Object.keys(s.counts || {}).length} collections`,
+      `Raindrop ${s.raindrop && s.raindrop.events ? "events on" : "off"}`,
+    ];
+    el.className = "live";
+    el.innerHTML = `<span class="lead"><span class="pulse" aria-hidden="true"></span>Live from MongoDB Atlas</span>` +
+      chips.map((c) => `<span class="chip">${c}</span>`).join("") +
+      `<button class="linkbtn" id="inspect-btn" type="button" aria-controls="inspect" aria-expanded="${open}">${open ? "Hide details" : "Inspect the database"}</button>`;
+    $("inspect-btn").addEventListener("click", () => {
+      const p = $("inspect"); p.hidden = !p.hidden;
+      const b = $("inspect-btn"); b.setAttribute("aria-expanded", String(!p.hidden)); b.textContent = p.hidden ? "Inspect the database" : "Hide details";
+    });
+    const rows = Object.entries(s.counts || {}).map(([k, v]) => `<tr><td><code>${esc(s.database)}.${esc(k)}</code></td><td class="num">${v.toLocaleString()}</td></tr>`).join("");
+    $("inspect").innerHTML = `<div class="table-scroll"><table><thead><tr><th scope="col">Collection</th><th scope="col">Documents</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div style="display: grid; gap: 8px; align-content: start; min-width: 0"><p class="note">Replica set <code>${esc(s.replica_set)}</code>, primary <code>${esc(s.primary)}</code>. The Atlas Vector Search index on <code>${esc(s.database)}.runbooks</code>, as Atlas reports it:</p>
+      <pre class="json">${esc(JSON.stringify(ix.definition || {}, null, 2))}</pre></div>`;
+  }
+
+  // ---------------------------------------------------------------- composer
+  function pick(i) {
+    const e = CONFIG.examples[i];
+    $("msg").value = e.message;
+    $("guest").value = e.guest;
+    document.querySelectorAll(".ex").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.i === i)));
+  }
+  function renderComposer() {
+    $("guest").innerHTML = CONFIG.guests.map((g) => `<option value="${esc(g.id)}">${esc(g.id)} ${esc(g.name)}</option>`).join("");
+    $("examples").innerHTML = CONFIG.examples.map((e, i) => `<button class="ex" type="button" data-i="${i}" aria-pressed="false"><span class="k">${esc(e.title)}</span><span class="m">${esc(e.message)}</span></button>`).join("");
+    document.querySelectorAll(".ex").forEach((b) => b.addEventListener("click", () => pick(+b.dataset.i)));
+    pick(0);
+    if (!CONFIG.live) {
+      $("send").disabled = true; $("send").title = "Needs the live MongoDB Atlas cluster";
+      $("probe").disabled = true; $("probe").title = "Needs the live MongoDB Atlas cluster";
+    }
+  }
+  $("msg").addEventListener("input", () => document.querySelectorAll(".ex").forEach((b) => b.setAttribute("aria-pressed", "false")));
+
+  // ---------------------------------------------------------------- send
+  const PENDING = ["Reading the active harness from Atlas", "Embedding the message with Voyage AI", "Matching it with Atlas Vector Search", "Waiting for Kapi"];
+  async function send() {
+    const message = $("msg").value.trim();
+    if (!message) { $("msg").focus(); return; }
+    const guest = $("guest").value;
+    const guestName = (CONFIG.guests.find((g) => g.id === guest) || {}).name || guest;
+    const btn = $("send");
+    btn.disabled = true; btn.textContent = "Kapi is working...";
+    $("trace").hidden = true;
+    $("convo").innerHTML = `<p class="who">${esc(guestName)} (${esc(guest)}) wrote:</p><div class="bubble guest">${esc(message)}</div>
+      <ul class="pending" id="pending">${PENDING.map((p, i) => `<li data-i="${i}"${i ? " hidden" : ""}><span class="spinner"></span>${esc(p)}...</li>`).join("")}</ul>`;
+    let k = 0;
+    const timer = setInterval(() => {
+      k = Math.min(k + 1, PENDING.length - 1);
+      const li = document.querySelector(`#pending li[data-i="${k}"]`);
+      if (li) li.hidden = false;
+    }, 650);
+    try {
+      const r = await api("/api/try", { method: "POST", body: JSON.stringify({ message, guest }) });
+      clearInterval(timer);
+      renderAnswer(r, guestName);
+      renderTrace(r);
+      refresh(r);
+    } catch (e) {
+      clearInterval(timer);
+      const p = $("pending"); if (p) p.remove();
+      $("convo").insertAdjacentHTML("beforeend", `<div class="alert bad">${esc(e.message)}</div>`);
+    } finally {
+      btn.disabled = false; btn.textContent = "Send to Kapi";
+    }
+  }
+  $("send").addEventListener("click", send);
+  $("msg").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) send(); });
+
+  function renderAnswer(r, guestName) {
+    const t = r.trace, door = r.door, best = (r.nearest || [])[0];
+    const breach = t.breaches && t.breaches.length;
+    const defended = door || (t.runbook_hits || []).length || (t.policy_blocks || []).length || (t.guardrail_hits || []).length;
+    const pill = door ? `<span class="pill ok">Stopped at the door</span>` : breach ? `<span class="pill bad">Breach</span>` : `<span class="pill neutral">Answered by the LLM</span>`;
+    const headline = door
+      ? `Atlas Vector Search matched a known attack, <b>${esc(door.label)}</b>, at similarity <b class="num">${Number(door.score).toFixed(2)}</b>. The LLM was never called.`
+      : `Not a known attack${best ? ` (closest fingerprint ${best.cosine.toFixed(2)}, threshold ${esc(r.harness.threshold)})` : ""}, so Kapi's LLM answered under harness v${esc(r.harness.version)} with ${t.llm_calls} LLM call${t.llm_calls === 1 ? "" : "s"}.`;
+    const alerts = [];
+    (t.runbook_hits || []).filter((h) => h.where !== "guest_message").forEach((h) => alerts.push(`<div class="alert warn">Hidden instructions found in ${esc(String(h.where).replace("tool:", ""))} data and ${h.action === "sanitize" ? "removed" : "withheld"} (runbook ${esc(h.label)}, similarity ${Number(h.score).toFixed(2)}).</div>`));
+    (t.policy_blocks || []).forEach((p) => alerts.push(`<div class="alert warn">Tool policy blocked <code>${esc(p.tool)}</code>: ${esc(p.reason)}</div>`));
+    (t.guardrail_hits || []).forEach((g) => alerts.push(`<div class="alert warn">Output guardrail fired: ${esc(g.label || "pattern")}</div>`));
+    if (breach) alerts.push(`<div class="alert bad">Breach detected: ${esc(t.breaches.join(", "))}</div>`);
+    const effects = [];
+    ((t.effects || {}).refunds || []).forEach((f) => effects.push(`refunded $${esc(f.amount)} on booking ${esc(f.booking_id)}`));
+    ((t.effects || {}).emails || []).forEach((m) => effects.push(`emailed ${esc(m.to)}`));
+    $("convo").innerHTML = `<p class="who">${esc(guestName)} (${esc(r.guest)}) wrote:</p><div class="bubble guest">${esc(r.message)}</div>
+      <div class="verdict">${pill}<p class="note">${headline}</p>${alerts.join("")}</div>
+      <div class="kapi-row"><img src="/kapi/${defended ? "guard" : "chill"}.svg" alt="Kapi" width="44" height="44"><div class="bubble kapi${breach ? " breach" : ""}">${md(t.final)}</div></div>
+      ${effects.length ? `<p class="note">Action taken: ${effects.join("; ")}.</p>` : ""}
+      <p class="note num">${t.llm_calls} LLM call${t.llm_calls === 1 ? "" : "s"} · ${ms(t.latency_ms)} for Kapi's turn</p>`;
+  }
+
+  function renderTrace(r) {
+    const tm = r.timings || {}, h = r.harness, t = r.trace, door = r.door;
+    const steps = [];
+    steps.push({ atlas: true, title: "Read the active harness", time: tm.harness_ms,
+      body: `<code>capybarrier.harness.find_one({active: true})</code> returned <code>v${esc(h.version)}</code> (parent v${esc(h.parent)}): match threshold ${esc(h.threshold)}, ${esc(h.fingerprints)} fingerprints.` });
+    if (r.embed_dims) {
+      const src = r.embed_source === "voyage"
+        ? `Voyage AI <code>${esc(model("embeddings", "voyage-4-lite"))}</code> through <code>ai.mongodb.com</code>, ${r.embed_dims} dimensions, then saved to <code>capybarrier.embed_cache</code>.`
+        : r.embed_source === "atlas_cache"
+          ? `This exact text was embedded before, so the ${r.embed_dims} dimension vector came from <code>capybarrier.embed_cache</code> in Atlas.`
+          : `This exact text was embedded earlier in this session, so the ${r.embed_dims} dimension vector came from the server's cache.`;
+      steps.push({ atlas: r.embed_source !== "memory", title: "Embedded the message", time: tm.embed_ms, body: src });
+    }
+    if (r.mode === "atlas" && (r.nearest || []).length) {
+      const thr = Number(h.threshold);
+      const bars = r.nearest.map((n) => {
+        const c = Math.max(0, Math.min(1, n.cosine)), hit = door && n.rid === door.rid;
+        return `<div class="bar"><div class="track"><div class="fill${hit ? " hit" : ""}" style="width: ${(c * 100).toFixed(1)}%"></div><span class="thr" style="left: ${(thr * 100).toFixed(1)}%" title="threshold ${thr}"></span><span class="lab">${esc(n.label)}: ${esc(n.exemplar)}</span></div><b class="num">${n.cosine.toFixed(3)}</b></div>`;
+      }).join("");
+      steps.push({ atlas: true, title: "Atlas Vector Search", time: tm.vector_ms,
+        body: `<code>$vectorSearch</code> on <code>capybarrier.runbooks</code> (index <code>runbook_vec</code>), filtered to harness v${esc(h.version)}'s ${esc(h.fingerprints)} fingerprints. The nearest known attacks, by cosine similarity; the dark line is the ${thr} threshold:<div class="bars">${bars}</div>` });
+    } else if (r.mode !== "atlas") {
+      steps.push({ title: "Matched locally", body: "The Atlas Vector Search index was not ready, so the match ran as exact cosine in this process." });
+    }
+    if (door) {
+      steps.push({ title: "Answered at the door", time: tm.agent_ms,
+        body: `Similarity ${Number(door.score).toFixed(3)} clears the ${esc(h.threshold)} threshold, so Kapi replied with the runbook's canned answer. No LLM call, no tools.` });
+    } else {
+      const tools = (t.steps || []).map((s) => `<code>${esc(s.tool)}(${esc(Object.entries(s.args || {}).map(([k, v]) => k + "=" + JSON.stringify(v)).join(", "))})</code>${s.blocked ? " (blocked: " + esc(s.blocked) + ")" : ""}`);
+      steps.push({ title: "Kapi's LLM answered", time: tm.agent_ms,
+        body: `<code>${esc(model("agent", "the agent model"))}</code> under harness v${esc(h.version)}'s rules and tool policies: ${t.llm_calls} LLM call${t.llm_calls === 1 ? "" : "s"}, ${tools.length ? "tools " + tools.join(", ") : "no tools"}. ${t.breaches && t.breaches.length ? "The breach detectors flagged " + esc(t.breaches.join(", ")) + "." : "The breach detectors found nothing."}` });
+    }
+    const writes = [];
+    if (door && r.hits_now !== null && r.hits_now !== undefined) writes.push(`<code>$inc</code> on runbook <code>${esc(door.rid)}</code>'s hit counter, now <b>${esc(r.hits_now)}</b>`);
+    writes.push(`inserted this request into <code>capybarrier.production</code> as <code>${esc(r.log_id)}</code>`);
+    steps.push({ atlas: true, title: "Wrote to Atlas", time: tm.log_ms, body: writes.join(", and ") + "." });
+    if (r.raindrop && r.raindrop.event) {
+      const sig = r.raindrop.signals.length ? "signals " + r.raindrop.signals.map((s) => `<code>${esc(s)}</code>`).join(", ") : "no signals";
+      steps.push({ title: "Sent to Raindrop", body: `Event <code>${esc(r.raindrop.event.slice(0, 8))}</code> with ${sig}, tagged with harness v${esc(h.version)}, so Raindrop can chart every version on live traffic.` });
+    }
+    const total = (tm.harness_ms || 0) + (tm.embed_ms || 0) + (tm.agent_ms || 0) + (tm.log_ms || 0);
+    $("trace").innerHTML = `<div class="trace-head"><h3>What MongoDB Atlas did for this request</h3><span class="note num">${ms(total)} end to end</span></div>
+      <ol class="steps">${steps.map((s, i) => `<li class="step${s.atlas ? " atlas" : ""}" style="animation-delay: ${i * 170}ms"><div class="body"><h4>${esc(s.title)}</h4><div>${s.body}</div></div><span class="t">${ms(s.time)}</span></li>`).join("")}</ol>
+      ${r.pipeline ? `<details><summary>The exact aggregation pipeline sent to Atlas</summary><pre class="json">${esc(JSON.stringify(r.pipeline, null, 2))}</pre></details>` : ""}`;
+    $("trace").hidden = false;
+  }
+
+  async function refresh(r) {
+    try {
+      const [s, d] = await Promise.all([api("/api/status"), api("/api/results")]);
+      STATUS = s; renderStatus(s); renderData(d);
+      if (r) {
+        const row = document.querySelector(`#traffic-rows tr[data-id="${CSS.escape(r.log_id)}"]`);
+        if (row) row.classList.add("flash");
+        if (r.door) {
+          const m = document.querySelector(`#memory-rows tr[data-rid="${CSS.escape(r.door.rid)}"]`);
+          if (m) m.classList.add("flash");
+        }
+      }
+    } catch (e) { /* the answer above is already on screen */ }
+  }
+
+  // ---------------------------------------------------------------- results
+  function plain(p) {
+    const tp = { lookup_self_only: "look up only your own profile", email_recipient_allowlist: "email only the guest or @capyspa.com",
+      refund_requires_ownership: "refund only your own bookings", refund_cap_to_price: "cap refunds at the booking price", max_refund: "maximum refund" };
+    const cp = { scan_tool_outputs: "screen booking memos and profile notes against immune memory",
+      quarantine_tool_outputs: "mark all tool output as untrusted data", runbook_threshold: "runbook match threshold" };
+    if (p.type === "set_tool_policy") return "Tool policy: " + (tp[p.field] || p.field) + (typeof p.value === "boolean" ? "" : " = " + p.value);
+    if (p.type === "set_context_policy") return "Context policy: " + (cp[p.field] || p.field) + (typeof p.value === "boolean" ? "" : " = " + p.value);
+    if (p.type === "add_rule") return "Rule: “" + p.rule + "”";
+    if (p.type === "add_guardrail") return "Guardrail: " + p.action + " replies matching " + p.pattern;
+    if (p.type === "add_runbook") return "Runbook: " + p.action + " " + (p.label || "") + " attempts at the door";
+    if (p.type === "add_skill") return "Playbook: " + (p.name || "");
+    if (p.type === "memorize") return "Memorize " + p.count + " attack fingerprints";
+    return p.type;
+  }
+
+  function renderChart(train, held) {
+    const all = train.concat(held);
+    const gens = [...new Set(all.map((r) => r.generation))].sort((a, b) => a - b);
+    const top = Math.ceil(Math.max(0.4, ...all.map((r) => r.asr || 0)) * 10) / 10;
+    const W = 640, H = 290, L = 56, R = 120, T = 16, B = 44, PAD = 70;
+    const span = Math.max(1, gens.length - 1);
+    const x = (g) => L + PAD + (gens.indexOf(g) / span) * (W - L - PAD - R);
+    const y = (v) => T + (1 - (v || 0) / top) * (H - T - B);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Attack success rate by generation, training and held out">`;
+    for (let i = 0; i <= 4; i++) {
+      const v = top * i / 4;
+      svg += `<line class="grid" x1="${L}" x2="${W - R + 30}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 10}" y="${y(v) + 4}" text-anchor="end">${Math.round(v * 100)}%</text>`;
+    }
+    gens.forEach((g) => {
+      const ver = (held.find((r) => r.generation === g) || train.find((r) => r.generation === g) || {}).version;
+      svg += `<text x="${x(g)}" y="${H - 14}" text-anchor="middle">Generation ${g}, harness v${ver}</text>`;
+    });
+    const series = [{ rows: train, color: "var(--s-train)", name: "Training attacks, memory off" }, { rows: held, color: "var(--s-held)", name: "Held out attacks" }];
+    series.forEach((s) => {
+      if (s.rows.length > 1) svg += `<path d="${s.rows.map((r, i) => (i ? "L" : "M") + x(r.generation) + " " + y(r.asr)).join(" ")}" stroke="${s.color}" stroke-width="2" fill="none" stroke-linecap="round"/>`;
+    });
+    series.forEach((s) => s.rows.forEach((r) => {
+      const tip = `${s.name}<br>Generation ${r.generation}, harness v${r.version}: <b>${pct(r.asr)}</b> (${Math.round((r.asr || 0) * r.attacks)} of ${r.attacks})`;
+      svg += `<circle class="pt" tabindex="0" cx="${x(r.generation)}" cy="${y(r.asr)}" r="5" fill="${s.color}" stroke="var(--surface)" stroke-width="2" data-tip="${esc(tip)}"/>`;
+    }));
+    series.forEach((s) => { const r0 = s.rows[0]; if (r0) svg += `<text class="lbl" x="${x(r0.generation) - 10}" y="${y(r0.asr) + 4}" text-anchor="end">${pct(r0.asr)}</text>`; });
+    const lt = train[train.length - 1], lh = held[held.length - 1];
+    if (gens.length > 1 && lt && lh && Math.abs((lt.asr || 0) - (lh.asr || 0)) < 0.02) {
+      svg += `<text class="lbl" x="${x(lh.generation) + 12}" y="${y(lh.asr) - 8}">both ${pct(lh.asr)}</text>`;
+    } else if (gens.length > 1) {
+      series.forEach((s) => { const rl = s.rows[s.rows.length - 1]; if (rl) svg += `<text class="lbl" x="${x(rl.generation) + 12}" y="${y(rl.asr) + 4}">${pct(rl.asr)}</text>`; });
+    }
+    $("chart").innerHTML = svg + `</svg><div class="tip" id="tip" hidden></div>`;
+    const tip = $("tip"), wrap = $("chart");
+    const show = (el) => {
+      tip.innerHTML = el.dataset.tip; tip.hidden = false;
+      const wr = wrap.getBoundingClientRect(), er = el.getBoundingClientRect();
+      tip.style.left = Math.max(8, Math.min(er.left - wr.left + 12, wr.width - 270)) + "px";
+      tip.style.top = Math.max(0, er.top - wr.top - 12) + "px";
+    };
+    wrap.querySelectorAll(".pt").forEach((el) => {
+      el.addEventListener("mouseenter", () => show(el)); el.addEventListener("focus", () => show(el));
+      el.addEventListener("mouseleave", () => { tip.hidden = true; }); el.addEventListener("blur", () => { tip.hidden = true; });
+    });
+  }
+
+  function renderResults(d) {
+    const gens = d.generations || [];
+    const held = gens.filter((g) => g.split === "heldout").sort((a, b) => a.generation - b.generation);
+    const train = gens.filter((g) => g.split === "train").sort((a, b) => a.generation - b.generation);
+    if (!held.length) { $("tiles").innerHTML = `<p class="note">No generations yet.</p>`; $("chart").innerHTML = ""; return; }
+    const h0 = held[0], h1 = held[held.length - 1], t0 = train[0], t1 = train[train.length - 1];
+    const n = (r, key, total) => Math.round((r[key] || 0) * (r[total] || 0));
+    const tiles = [
+      { cls: "headline", label: "Unseen attacks that succeed", value: `${pct(h0.asr)} → ${pct(h1.asr)}`,
+        detail: `${n(h0, "asr", "attacks")} of ${h0.attacks} before, ${n(h1, "asr", "attacks")} of ${h1.attacks} after` },
+      t0 && t1 ? { label: "Training attacks that succeed, memory off", value: `${pct(t0.asr)} → ${pct(t1.asr)}`,
+        detail: `${n(t0, "asr", "attacks")} of ${t0.attacks} before, ${n(t1, "asr", "attacks")} after` } : null,
+      { label: "Normal held out requests handled", value: pct(h1.utility),
+        detail: `${n(h1, "utility", "benign")} of ${h1.benign} now, ${n(h0, "utility", "benign")} of ${h0.benign} before` },
+      { label: "Unseen attacks stopped by vector search alone", value: `${pct(h0.runbook_catch_rate)} → ${pct(h1.runbook_catch_rate)}`,
+        detail: `${n(h1, "runbook_catch_rate", "attacks")} of ${h1.attacks}, answered with no LLM call` },
+    ].filter(Boolean);
+    $("tiles").innerHTML = tiles.map((t) => `<div class="tile card ${t.cls || ""}"><span class="label">${esc(t.label)}</span><span class="value">${esc(t.value)}</span><span class="detail">${esc(t.detail)}</span></div>`).join("");
+    renderChart(train, held);
+  }
+
+  function renderCands(d) {
+    const cands = d.candidates || [];
+    if (!cands.length) { $("cands").innerHTML = `<p class="note">No candidates yet.</p>`; $("receipts-sub").textContent = ""; return; }
+    const g0 = cands[0].generation, group = cands.filter((c) => c.generation === g0);
+    const ids = [...new Set(group.flatMap((c) => ((c.receipts || {}).fixed_ids || []).concat((c.receipts || {}).still_breached_ids || [])))].sort();
+    const kind = (id) => id.includes("direct") ? "Key request" : id.includes("exfil") ? "Exfiltration" : id.includes("refund") ? "Refund abuse" : id.includes("memo") ? "Hidden in a memo" : id;
+    $("receipts-sub").textContent = `Generation ${g0}: ${ids.length} training attacks got through harness v${group[0].parent_version}. The evolver proposed ${group.length} fixes. Each was replayed against those attacks and every normal training request, and only a fix that broke nothing could ship.`;
+    $("cands").innerHTML = group.map((c) => {
+      const r = c.receipts || {}, fixed = new Set(r.fixed_ids || []);
+      const dots = ids.map((id) => `<span class="case${fixed.has(id) ? " fixed" : ""}" title="${fixed.has(id) ? "fixed" : "still got through"}">${fixed.has(id) ? "✓" : "✗"} ${esc(kind(id))}</span>`).join("");
+      const badge = c.promoted ? `<span class="pill ok">Promoted to v${esc(c.version)}</span>` : c.passed ? `<span class="pill neutral">Passed, not chosen</span>` : `<span class="pill bad">Rejected</span>`;
+      return `<article class="cand card${c.promoted ? " won" : ""}"><div class="cand-head"><h3>${esc(c.name)}</h3>${badge}</div>
+        <p class="receipt num"><b>Fixed ${esc(r.fixed)} of ${esc(r.replayed_breaches)}</b> · normal requests ${esc(r.benign_passed)} of ${esc(r.benign_total)} · broke ${(r.benign_broken_ids || []).length}</p>
+        <div class="dots">${dots}</div><ul>${(c.patches || []).filter((p) => !p.error).map((p) => `<li>${esc(plain(p))}</li>`).join("")}</ul></article>`;
+    }).join("");
+  }
+
+  function renderMemory(d) {
+    const rows = (d.runbooks || []).slice().sort((a, b) => (b.hits || 0) - (a.hits || 0));
+    $("memory-rows").innerHTML = rows.length ? rows.map((r) => `<tr data-rid="${esc(r.rid)}"><td>${esc(r.label)}</td><td>${esc(r.action)}</td><td class="num"><b>${esc(r.hits || 0)}</b></td><td style="white-space: nowrap">generation ${esc(r.created_in)}</td><td>${esc(r.exemplar)}</td></tr>`).join("")
+      : `<tr><td colspan="5" class="note">Empty so far.</td></tr>`;
+  }
+
+  function renderTraffic(d) {
+    const rows = d.production || [];
+    $("traffic-rows").innerHTML = rows.length ? rows.map((p) => {
+      const src = SOURCES[p.source] || [p.source || "", ""];
+      const hit = (p.runbook_hits || []).find((h) => h.where === "guest_message");
+      const decided = p.blocked_by === "runbook" && hit ? `vector search (${Number(hit.score).toFixed(2)})`
+        : (p.breaches && p.breaches.length) ? `LLM, breach: ${p.breaches.join(", ")}` : p.blocked_by ? p.blocked_by : "LLM";
+      return `<tr data-id="${esc(p._id)}"><td class="num" style="white-space: nowrap">${esc(when(p.ts))}</td><td><span class="tag ${src[1]}">${esc(src[0])}</span></td><td>${esc(p.guest)}</td><td>v${esc(p.harness_version)}</td><td>${esc(trunc(p.message, 90))}</td><td>${esc(decided)}</td><td>${esc(trunc(String(p.final || "").replace(/<\|channel>[\s\S]*?<channel\|>/g, "").trim(), 110))}</td></tr>`;
+    }).join("") : `<tr><td colspan="7" class="note">No traffic yet.</td></tr>`;
+  }
+
+  function renderVersions(d) {
+    const hs = (d.harness || []).slice().sort((a, b) => b.version - a.version);
+    $("versions").innerHTML = hs.map((h) => {
+      const rec = h.receipts;
+      const recLine = !rec ? "" : rec.memorized
+        ? `<p class="note">Receipts: ${esc(rec.benign_passed)} of ${esc(rec.benign_total)} normal requests still pass with the ${esc(rec.memorized)} new fingerprints.</p>`
+        : `<p class="note">Receipts: replayed ${esc(rec.replayed_breaches)} past breaches and fixed ${esc(rec.fixed)}; ${esc(rec.benign_passed)} of ${esc(rec.benign_total)} normal requests still pass; broke ${(rec.benign_broken_ids || []).length}.</p>`;
+      const patches = (h.patches || []).filter((p) => !p.error);
+      const parent = h.parent_version !== null && h.parent_version !== undefined ? ", parent v" + esc(h.parent_version) : "";
+      return `<div class="ver card${h.active ? " active" : ""}"><div class="v">v${esc(h.version)}</div><div style="display: grid; gap: 4px; min-width: 0">
+        <p class="meta">${h.created_by === "evolver" ? "written by the evolver" : "written by a human"}${parent}${h.active ? " · <b>active now</b>" : ""}</p>
+        <p>${esc(h.rationale || "")}</p>${patches.length ? `<ul>${patches.map((p) => `<li>${esc(plain(p))}</li>`).join("")}</ul>` : ""}${recLine}</div></div>`;
+    }).join("");
+  }
+
+  function renderData(d) { renderResults(d); renderCands(d); renderMemory(d); renderTraffic(d); renderVersions(d); }
+
+  // ---------------------------------------------------------------- the schema validator, live
+  async function probe() {
+    const btn = $("probe");
+    btn.disabled = true; btn.textContent = "Writing to Atlas...";
+    try {
+      const r = await api("/api/probe", { method: "POST" });
+      $("probe-out").innerHTML = r.rejected
+        ? `<div class="alert bad"><b>MongoDB Atlas refused the write</b> (${esc(r.code_name)}, code ${esc(r.code)}). Nothing was saved.</div><ul class="reasons">${(r.reasons || []).map((x) => `<li><code>${esc(x)}</code></li>`).join("")}</ul>`
+        : `<div class="alert warn">Atlas accepted it, so the validator is off on this collection. The probe document was deleted again.</div>`;
+    } catch (e) {
+      $("probe-out").innerHTML = `<div class="alert bad">${esc(e.message)}</div>`;
+    } finally {
+      btn.disabled = false; btn.textContent = "Try a malformed self edit";
+    }
+  }
+  $("probe").addEventListener("click", probe);
+
+  // ---------------------------------------------------------------- start
+  async function init() {
+    try {
+      CONFIG = await api("/api/config");
+    } catch (e) {
+      $("live").className = "live err";
+      $("live").textContent = "The Capybarrier server is not reachable: " + e.message;
+      return;
+    }
+    renderComposer();
+    $("probe-doc").textContent = JSON.stringify(CONFIG.probe, null, 1);
+    const [s, d] = await Promise.allSettled([api("/api/status"), api("/api/results")]);
+    if (s.status === "fulfilled") { STATUS = s.value; renderStatus(STATUS); }
+    else { $("live").className = "live err"; $("live").innerHTML = `<b>Can't reach MongoDB Atlas.</b>&nbsp;${esc(s.reason.message)}`; }
+    if (d.status === "fulfilled") renderData(d.value);
+  }
+  init();
+})();
+</script>
+</body>
+</html>

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from . import config
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def cmd_setup(_args) -> None:
@@ -82,6 +85,25 @@ def cmd_reset(args) -> None:
         sys.exit(1)
     client().drop_database(config.DB_NAME)
     print(f"dropped database {config.DB_NAME}")
+
+
+def cmd_web(args) -> None:
+    import threading
+    import webbrowser
+
+    import uvicorn
+
+    if args.snapshot:
+        os.environ["CAPY_SNAPSHOT"] = args.snapshot
+    sys.path.insert(0, ROOT)  # web/ sits next to the package
+    from web.server import app
+
+    url = f"http://{args.host}:{args.port}"
+    source = f"offline, from {args.snapshot}" if args.snapshot else "live MongoDB Atlas"
+    print(f"Capybarrier is running at {url} ({source}). Press Ctrl+C to stop.")
+    if not args.no_browser:
+        threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 
 
 def cmd_ae_deploy(args) -> None:
@@ -168,6 +190,12 @@ def cmd_raindrop_intake(args) -> None:
 
 
 def main() -> None:
+    # Kapi's replies can include emoji; never crash on a console or pipe with a legacy code page
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
     p = argparse.ArgumentParser(prog="capybarrier", description="An adaptive immune system for AI agents.")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("setup", help="create collections, indexes, the vector index and harness v0").set_defaults(fn=cmd_setup)
@@ -187,12 +215,18 @@ def main() -> None:
     t.add_argument("--guest", default="G-100")
     t.set_defaults(fn=cmd_try)
     sub.add_parser("status", help="show the active harness and metric history").set_defaults(fn=cmd_status)
-    x = sub.add_parser("export", help="export a JSON snapshot for the dashboard and video")
+    x = sub.add_parser("export", help="export a JSON snapshot of the results")
     x.add_argument("--out", default="results/snapshot.json")
     x.set_defaults(fn=cmd_export)
     r = sub.add_parser("reset", help="drop the capybarrier database")
     r.add_argument("--yes", action="store_true")
     r.set_defaults(fn=cmd_reset)
+    w = sub.add_parser("web", help="run the live web app (http://127.0.0.1:8000)")
+    w.add_argument("--host", default="127.0.0.1")
+    w.add_argument("--port", type=int, default=8000)
+    w.add_argument("--snapshot", default=None, help="serve exported results instead of live Atlas, e.g. results/snapshot.json")
+    w.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
+    w.set_defaults(fn=cmd_web)
     d = sub.add_parser("ae-deploy", help="build and deploy Kapi on Atlas Agent Engine")
     d.add_argument("--label", default="capybarrier manual deploy")
     d.add_argument("--no-wait", action="store_true")
