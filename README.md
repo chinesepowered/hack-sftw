@@ -6,12 +6,10 @@ It learns from every attack, rewrites its own defenses, and ships a fix only wit
 
 <p align="center">MongoDB Atlas · Atlas Vector Search · Voyage AI (via Atlas) · Atlas Agent Engine · Raindrop</p>
 
-<p align="center"><a href="video/out/capybarrier-demo.mp4"><img src="assets/demo-poster.jpg" width="720" alt="Watch the Capybarrier demo video"></a></p>
+<p align="center"><a href="https://www.youtube.com/watch?v=mcaWHJ5Om3A"><img src="assets/demo-poster.jpg" width="720" alt="Watch the Capybarrier demo video on YouTube"></a></p>
 
 <p align="center">
-  🎬 <a href="video/out/capybarrier-demo.mp4"><b>Demo video (2 min)</b></a> ·
-  <a href="video/out/capybarrier-demo-1min.mp4"><b>1 minute cut</b></a> ·
-  subtitles burned in (also as <a href="video/out/capybarrier-demo.srt">.srt</a> and <a href="video/out/capybarrier-demo-1min.srt">.srt</a>) ·
+  🎬 <a href="https://www.youtube.com/watch?v=mcaWHJ5Om3A"><b>Demo video (2 min)</b></a> ·
   🖥️ <a href="assets/web.png">Live web app</a> ·
   🗄️ <a href="results/snapshot.json">Raw results exported from Atlas</a>
 </p>
