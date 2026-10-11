@@ -40,3 +40,10 @@ AE_PROJECT_ID = _get("AGENTENGINE_PROJECT_ID")
 AE_WORKSPACE_ID = _get("AGENTENGINE_WORKSPACE_ID")
 
 ELEVENLABS_API_KEY = _get("ELEVENLABS_API_KEY")
+
+# Raindrop: the write key sends events and signals, the Query API key reads flagged production events back.
+RAINDROP_WRITE_KEY = _get("RAINDROP_WRITE_KEY")
+RAINDROP_QUERY_API_KEY = _get("RAINDROP_QUERY_API_KEY")
+RAINDROP_PROJECT = _get("RAINDROP_PROJECT")
+RAINDROP_ENDPOINT = _get("RAINDROP_ENDPOINT")
+RAINDROP_QUERY_URL = _get("RAINDROP_QUERY_URL", "https://query.raindrop.ai/v1")

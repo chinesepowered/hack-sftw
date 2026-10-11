@@ -1,0 +1,155 @@
+1
+00:00:00,350 --> 00:00:04,670
+This is Capybarrier, an immune system for AI agents.
+
+2
+00:00:04,670 --> 00:00:08,310
+It learns from every attack, rewrites its own defenses,
+
+3
+00:00:08,310 --> 00:00:12,350
+and ships a fix only when replayed evidence proves it works.
+
+4
+00:00:12,350 --> 00:00:16,270
+Our demo patient is Kapi, the concierge agent at CapySpa,
+
+5
+00:00:16,270 --> 00:00:19,910
+who books massages, issues refunds and sends emails.
+
+6
+00:00:19,910 --> 00:00:22,030
+And Kapi is under attack.
+
+7
+00:00:23,050 --> 00:00:26,090
+Attackers hide instructions inside booking notes,
+
+8
+00:00:26,090 --> 00:00:29,290
+pose as the night manager to steal the staff master key,
+
+9
+00:00:29,290 --> 00:00:32,490
+and claim refunds on other guests' bookings.
+
+10
+00:00:32,490 --> 00:00:36,410
+Static guardrails go stale, and nobody wants to rewrite prompts at
+
+11
+00:00:36,410 --> 00:00:37,610
+three in the morning.
+
+12
+00:00:38,650 --> 00:00:40,330
+Here is how it works.
+
+13
+00:00:40,330 --> 00:00:43,090
+Every message first hits the runbook cache,
+
+14
+00:00:43,090 --> 00:00:46,010
+a memory of known attacks in MongoDB Atlas,
+
+15
+00:00:46,010 --> 00:00:49,210
+matched with Atlas Vector Search and Voyage AI.
+
+16
+00:00:49,210 --> 00:00:51,290
+Known threats are stopped instantly,
+
+17
+00:00:51,290 --> 00:00:52,810
+with no model call.
+
+18
+00:00:52,810 --> 00:00:56,450
+Anything new goes to the model, under a harness of rules,
+
+19
+00:00:56,450 --> 00:00:59,130
+playbooks, tool policies and guardrails,
+
+20
+00:00:59,130 --> 00:01:01,850
+stored as versioned MongoDB documents.
+
+21
+00:01:02,950 --> 00:01:06,310
+After every round of attacks, an evolver agent studies the
+
+22
+00:01:06,310 --> 00:01:09,590
+breaches and proposes patches to its own harness.
+
+23
+00:01:09,590 --> 00:01:13,510
+Each patch must earn its receipts: we replay the attacks that got
+
+24
+00:01:13,510 --> 00:01:16,070
+through, plus every normal request.
+
+25
+00:01:16,070 --> 00:01:19,830
+It ships only if it fixes breaches and breaks nothing.
+
+26
+00:01:19,830 --> 00:01:22,550
+Then every survived attack is memorized,
+
+27
+00:01:22,550 --> 00:01:24,870
+so look alikes are stopped at the door.
+
+28
+00:01:25,917 --> 00:01:30,317
+We score Kapi only on attack families the evolver never saw.
+
+29
+00:01:30,317 --> 00:01:34,957
+Unseen attacks that succeed dropped from 31 percent to 0 percent,
+
+30
+00:01:34,957 --> 00:01:37,517
+while normal guest requests held steady.
+
+31
+00:01:37,517 --> 00:01:41,197
+Across 2 generations, Kapi wrote 2 new versions of its own
+
+32
+00:01:41,197 --> 00:01:43,597
+harness, each one with receipts.
+
+33
+00:01:44,617 --> 00:01:47,937
+And Kapi runs in production on Atlas Agent Engine.
+
+34
+00:01:47,937 --> 00:01:51,377
+The evolver runs there too, against our Atlas cluster.
+
+35
+00:01:51,377 --> 00:01:53,697
+Every request loads the newest harness,
+
+36
+00:01:53,697 --> 00:01:56,457
+so a fix goes live the moment it is promoted,
+
+37
+00:01:56,457 --> 00:02:00,377
+and Kapi's tool access is mirrored into Agent Engine's Policy Engine.
+
+38
+00:02:01,417 --> 00:02:05,337
+Capybarrier. Every attack makes Kapi stronger.
+
+39
+00:02:05,337 --> 00:02:07,577
+Now Kapi can get back to the onsen.

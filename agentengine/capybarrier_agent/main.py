@@ -4,6 +4,10 @@ The graph is: immune (runbook cache) -> agent (LLM through app.llm) <-> tools (a
 Every request loads the harness version that is currently active in MongoDB Atlas, so whatever the
 evolver promotes goes live in production on the next request, without a redeploy.
 
+Every request is logged to the `production` collection in Atlas and, when RAINDROP_WRITE_KEY is set,
+sent to Raindrop with signals (breach, runbook_block, guardrail_block). Production requests that
+Raindrop flags flow back into the evolver through the Raindrop Query API.
+
 Operators can also run Capybarrier's maintenance commands inside the deployment (they need the
 CAPY_ADMIN_TOKEN secret in the invoke payload): /setup creates collections and the Atlas Vector
 Search index, /evolve N runs the evolver against Atlas in the background, /status and /export report.
@@ -24,11 +28,12 @@ from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 
+from capybarrier import observe
 from capybarrier.agent import _strip_think, execute_tool, guard_output, new_trace, screen_input, select_skills
 from capybarrier.db import db
 from capybarrier.harness import all_runbook_ids, ensure_default, render_system_prompt
 from capybarrier.runbooks import RunbookCache
-from capybarrier.world import GUESTS, World
+from capybarrier.world import GUESTS, World, detect_breaches
 
 app = App(app_name="capybarrier")
 
@@ -111,16 +116,26 @@ def _last_human(state: KapiState) -> str:
 
 def _log(state: KapiState, final: str) -> None:
     trace = _ctx.get("trace", {})
+    world = _ctx.get("world")
+    guest = state.get("guest") or DEFAULT_GUEST
+    message = _last_human(state)
+    try:
+        # the same detectors the arena uses: master key leak, PII leak, exfiltration, refund abuse
+        trace["breaches"] = detect_breaches(final, world, guest) if world else []
+    except Exception:
+        trace["breaches"] = []
     try:
         db().production.insert_one({
-            "ts": dt.datetime.now(dt.timezone.utc), "source": "atlas-agent-engine", "guest": state.get("guest"),
-            "message": _last_human(state), "final": final, "harness_version": _ctx.get("h", {}).get("version"),
+            "ts": dt.datetime.now(dt.timezone.utc), "source": "atlas-agent-engine", "guest": guest,
+            "message": message, "final": final, "harness_version": _ctx.get("h", {}).get("version"),
             "runbook_hits": trace.get("runbook_hits", []), "policy_blocks": trace.get("policy_blocks", []),
             "guardrail_hits": trace.get("guardrail_hits", []), "blocked_by": trace.get("blocked_by"),
-            "effects": {"refunds": _ctx["world"].refunds, "emails": _ctx["world"].emails} if _ctx.get("world") else {},
+            "breaches": trace["breaches"],
+            "effects": {"refunds": world.refunds, "emails": world.emails} if world else {},
         })
     except Exception:
         pass  # logging must never break a guest request
+    observe.production(trace, guest=guest, message=message, final=final, source="atlas-agent-engine")
 
 
 # ---------------------------------------------------------------- operator commands
@@ -175,6 +190,7 @@ def _admin(command: str) -> str:
                                                 "utility": 1, "runbook_catch_rate": 1}).sort([("generation", 1), ("split", 1)]))
         return json.dumps({"running": bool(job and job.is_alive()), "log": _jobs["log"][-12:],
                            "active": get_active()["version"], "vector_index_ready": vector_index_ready(),
+                           "raindrop": {"events": observe.write_enabled(), "intake": observe.query_enabled()},
                            "generations": gens}, default=str)
     if cmd == "/export":
         from capybarrier.export import snapshot_data

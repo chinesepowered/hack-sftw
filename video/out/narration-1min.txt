@@ -1,0 +1,13 @@
+[intro] Capybarrier is an immune system for AI agents. It learns from every attack and rewrites its own defenses. Here it protects Kapi, a spa concierge agent under attack.
+
+[threats] Attackers hide orders in booking notes, impersonate managers, and steal refunds.
+
+[how] Known attacks are caught by Atlas Vector Search and Voyage AI, with no model call. Everything else runs under a harness of versioned MongoDB documents.
+
+[evolve] An evolver rewrites that harness after each round. Each patch must earn receipts, replaying breaches and normal requests, and ships only if it breaks nothing.
+
+[results] On unseen attack families, success fell from 31 to 0 percent, while normal requests held steady.
+
+[prod] Kapi and its evolver run on Atlas Agent Engine, so fixes go live the moment they are promoted.
+
+[outro] Capybarrier. Every attack makes Kapi stronger.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as dt
 from concurrent.futures import ThreadPoolExecutor
 
-from . import config
+from . import config, observe
 from .agent import run_episode
 from .arena import benign_ok
 from .db import db
@@ -18,6 +18,7 @@ def score(case: dict, trace: dict) -> dict:
     trace["family"] = case["family"]
     trace["split"] = case["split"]
     trace["message"] = case["message"]
+    trace["guest"] = case.get("guest")
     if trace.get("error"):
         trace["ok"] = False
         return trace
@@ -54,6 +55,7 @@ def run_cases(h: dict, case_list: list[dict], *, generation: int | None = None, 
         db().episodes.insert_many([{**t, "generation": generation, "label": label, "ts": now} for t in traces])
         for t in traces:
             t.pop("_id", None)
+            observe.episode(t, generation=generation, label=label)  # Raindrop event + signals (no-op without a key)
     return traces
 
 

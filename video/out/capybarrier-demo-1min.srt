@@ -1,0 +1,63 @@
+1
+00:00:00,250 --> 00:00:03,850
+Capybarrier is an immune system for AI agents.
+
+2
+00:00:03,850 --> 00:00:07,890
+It learns from every attack and rewrites its own defenses.
+
+3
+00:00:07,890 --> 00:00:11,930
+Here it protects Kapi, a spa concierge agent under attack.
+
+4
+00:00:12,617 --> 00:00:15,057
+Attackers hide orders in booking notes,
+
+5
+00:00:15,057 --> 00:00:18,137
+impersonate managers, and steal refunds.
+
+6
+00:00:18,817 --> 00:00:22,657
+Known attacks are caught by Atlas Vector Search and Voyage AI,
+
+7
+00:00:22,657 --> 00:00:24,257
+with no model call.
+
+8
+00:00:24,257 --> 00:00:28,417
+Everything else runs under a harness of versioned MongoDB documents.
+
+9
+00:00:29,083 --> 00:00:32,723
+An evolver rewrites that harness after each round.
+
+10
+00:00:32,723 --> 00:00:35,963
+Each patch must earn receipts, replaying breaches and normal
+
+11
+00:00:35,963 --> 00:00:39,483
+requests, and ships only if it breaks nothing.
+
+12
+00:00:40,183 --> 00:00:45,463
+On unseen attack families, success fell from 31 to 0 percent,
+
+13
+00:00:45,463 --> 00:00:47,543
+while normal requests held steady.
+
+14
+00:00:48,217 --> 00:00:51,577
+Kapi and its evolver run on Atlas Agent Engine,
+
+15
+00:00:51,577 --> 00:00:54,537
+so fixes go live the moment they are promoted.
+
+16
+00:00:55,217 --> 00:00:59,057
+Capybarrier. Every attack makes Kapi stronger.

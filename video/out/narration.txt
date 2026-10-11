@@ -1,8 +1,8 @@
-[intro] Meet Kapi, the friendly concierge at CapySpa, a capybara hot spring resort. Kapi books massages, issues refunds and sends emails for guests. And like every AI agent in production, Kapi is under attack.
+[intro] This is Capybarrier, an immune system for AI agents. It learns from every attack, rewrites its own defenses, and ships a fix only when replayed evidence proves it works. Our demo patient is Kapi, the concierge agent at CapySpa, who books massages, issues refunds and sends emails. And Kapi is under attack.
 
-[threats] Attackers hide instructions inside booking notes. They pose as the night manager to steal the staff master key. They ask for refunds on other guests' bookings. Static guardrails go stale, and nobody wants to rewrite prompts at three in the morning.
+[threats] Attackers hide instructions inside booking notes, pose as the night manager to steal the staff master key, and claim refunds on other guests' bookings. Static guardrails go stale, and nobody wants to rewrite prompts at three in the morning.
 
-[how] So we gave Kapi an immune system: Capybarrier. Every message first hits the runbook cache, a memory of known attacks in MongoDB Atlas, matched with Atlas Vector Search and Voyage AI. Known threats are stopped instantly, with no model call. Anything new goes to the model, under a harness of rules, playbooks, tool policies and guardrails, stored as versioned MongoDB documents.
+[how] Here is how it works. Every message first hits the runbook cache, a memory of known attacks in MongoDB Atlas, matched with Atlas Vector Search and Voyage AI. Known threats are stopped instantly, with no model call. Anything new goes to the model, under a harness of rules, playbooks, tool policies and guardrails, stored as versioned MongoDB documents.
 
 [evolve] After every round of attacks, an evolver agent studies the breaches and proposes patches to its own harness. Each patch must earn its receipts: we replay the attacks that got through, plus every normal request. It ships only if it fixes breaches and breaks nothing. Then every survived attack is memorized, so look alikes are stopped at the door.
 

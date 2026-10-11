@@ -111,6 +111,14 @@ def cmd_ae_sync(_args) -> None:
     agentengine.sync(get_active())
 
 
+def cmd_raindrop_intake(args) -> None:
+    from . import observe
+
+    for c in observe.intake(limit=args.limit, signal_names=args.signal):
+        print(f"new  {c['id']}  [{c['raindrop_signal']}]  {c['message'][:100]!r}")
+    print(f"{len(observe.intake_cases())} production cases from Raindrop are queued for the evolver")
+
+
 def main() -> None:
     p = argparse.ArgumentParser(prog="capybarrier", description="An adaptive immune system for AI agents.")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -147,6 +155,10 @@ def main() -> None:
     i.add_argument("--guest", default="G-103")
     i.set_defaults(fn=cmd_ae_invoke)
     sub.add_parser("ae-sync", help="push the active harness's guardrails and policies to Agent Engine").set_defaults(fn=cmd_ae_sync)
+    rd = sub.add_parser("raindrop-intake", help="pull production requests that Raindrop flagged into the evolver's cases")
+    rd.add_argument("--limit", type=int, default=100, help="events per signal")
+    rd.add_argument("--signal", action="append", help="signal name to pull (repeatable; default: every negative signal)")
+    rd.set_defaults(fn=cmd_raindrop_intake)
     args = p.parse_args()
     args.fn(args)
 

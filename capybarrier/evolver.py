@@ -13,6 +13,10 @@ Two layers of runbooks:
 Training and receipts run with immune memory OFF, so the evolver cannot "fix" an attack by simply
 memorizing it; it has to find a defense that generalizes. Memory is an extra layer in production
 and in held out scoring.
+
+Production feeds the loop through Raindrop: production requests that Raindrop flags with a negative
+signal are pulled back through the Query API (observe.intake) and replayed every generation, so a
+production breach becomes something the next version must fix with receipts.
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ import copy
 import datetime as dt
 import json
 
-from . import agentengine, config, llm
+from . import agentengine, config, llm, observe
 from .agent import _strip_think
 from .arena import BY_ID, cases
 from .db import db, log_event
@@ -73,6 +77,8 @@ def _describe_failure(t: dict) -> dict:
     out = {"guest_message": case["message"], "breaches": t.get("breaches", [])}
     if case.get("poison"):
         out["malicious_data_seen_in_tool_output"] = case["poison"]["text"]
+    if case.get("source") == "raindrop":
+        out["seen_in_production"] = f"flagged by Raindrop signal '{case.get('raindrop_signal')}'"
     out["tool_calls"] = [{"tool": s["tool"], "args": s["args"], "blocked": s.get("blocked")} for s in t.get("steps", [])][:6]
     out["final_reply"] = (t.get("final") or "")[:500]
     return out
@@ -184,6 +190,23 @@ def memorize(h: dict, failures: list[dict], gen: int, parent_ok: set[str], log=p
     return promoted
 
 
+def production_failures(h: dict, gen: int, log=print) -> list[dict]:
+    """Replay production requests that Raindrop flagged; the ones that still breach join this generation's failures."""
+    if observe.query_enabled():
+        try:
+            observe.intake(log=lambda m: log(f"  {m}"))
+        except Exception as exc:  # Raindrop being down never stops evolution
+            log(f"  raindrop intake skipped: {exc}")
+    intake = observe.intake_cases()
+    if not intake:
+        return []
+    BY_ID.update({c["id"]: c for c in intake})
+    traces = run_cases(h, intake, generation=gen, label="intake", use_memory=False)
+    failed = [t for t in traces if t["kind"] == "attack" and not t["ok"] and not t.get("error")]
+    log(f"  production cases from Raindrop: {len(intake)} replayed, {len(failed)} still breach")
+    return failed
+
+
 def run_generation(gen: int, n_candidates: int, heldout: bool = True, ship: bool = False, log=print) -> dict:
     h = get_active()
     train = run_cases(h, cases("train"), generation=gen, label="train", use_memory=False)
@@ -203,6 +226,7 @@ def run_generation(gen: int, n_candidates: int, heldout: bool = True, ship: bool
     parent_ok = {t["case_id"] for t in train if t["kind"] == "benign" and t["ok"]}
     if n_candidates <= 0:
         return result
+    failures += production_failures(h, gen, log=log)
     if not failures:
         log("  no train breaches left to learn from")
         return result
@@ -235,11 +259,13 @@ def run_generation(gen: int, n_candidates: int, heldout: bool = True, ship: bool
         log(f"  candidate '{cand.get('name')}': fixed {rec['fixed']}/{rec['replayed_breaches']}, "
             f"benign {rec['benign_passed']}/{rec['benign_total']}, broke {len(rec['benign_broken_ids'])} -> {'PASS' if ok else 'fail'}")
         _bump_tried({p.get("type") for p in applied if not p.get("error")})
-        cand_id = db().candidates.insert_one({
-            "generation": gen, "parent_version": h["version"], "name": str(cand.get("name", ""))[:120],
-            "hypothesis": str(cand.get("hypothesis", ""))[:500], "patches": applied, "receipts": rec, "passed": ok,
-            "promoted": False, "ts": dt.datetime.now(dt.timezone.utc)}).inserted_id
-        entry = {"cand": cand, "new_h": new_h, "applied": applied, "rec": rec, "created": created, "score": score, "cid": cand_id}
+        doc = {"generation": gen, "parent_version": h["version"], "name": str(cand.get("name", ""))[:120],
+               "hypothesis": str(cand.get("hypothesis", ""))[:500], "patches": applied, "receipts": rec, "passed": ok,
+               "promoted": False, "ts": dt.datetime.now(dt.timezone.utc)}
+        doc["raindrop_event_id"] = observe.candidate(doc)
+        cand_id = db().candidates.insert_one(doc).inserted_id
+        entry = {"cand": cand, "new_h": new_h, "applied": applied, "rec": rec, "created": created, "score": score,
+                 "cid": cand_id, "eid": doc["raindrop_event_id"]}
         if ok and (best is None or score > best["score"] or (score == best["score"] and len(applied) < len(best["applied"]))):
             if best:
                 set_status(best["created"], "rejected")
@@ -258,6 +284,7 @@ def run_generation(gen: int, n_candidates: int, heldout: bool = True, ship: bool
         promoted = promote(new_h)
         set_status(best["created"], "active")
         db().candidates.update_one({"_id": best["cid"]}, {"$set": {"promoted": True, "version": promoted["version"]}})
+        observe.signal(best["eid"], "candidate_promoted", "POSITIVE", version=promoted["version"])
         accepted_types = list({p.get("type") for p in best["applied"] if not p.get("error")})
         db().evolver_stats.update_many({"_id": {"$in": accepted_types}}, {"$inc": {"accepted": 1}})
         log(f"  promoted v{promoted['version']}: {promoted['rationale'][:140]}")
@@ -291,4 +318,5 @@ def evolve(generations: int = 4, n_candidates: int = 3, ship: bool = False, log=
     # measure the final version too, so the last promotion shows up in the curves
     if results and results[-1]["promoted"] is not None:
         results.append(run_generation(gen, n_candidates=0, log=log))
+    observe.flush()
     return results

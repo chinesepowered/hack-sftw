@@ -21,7 +21,8 @@ scaling:
   agent_idle_ttl_seconds: 600
 
 # LLM calls made through app.llm execute in the tool sandbox, so both sandboxes get the
-# model endpoint, Voyage (embeddings for the runbook cache) and the Atlas cluster.
+# model endpoint, Voyage (embeddings for the runbook cache), the Atlas cluster, and Raindrop
+# (events and signals out through api.raindrop.ai, flagged production events back through query.raindrop.ai).
 sandboxes:
   agent:
     secrets: ["*"]
@@ -34,6 +35,10 @@ sandboxes:
         - fqdn: ai.mongodb.com
           ports: [443]
         - fqdn: "*.ymi8kv.mongodb.net"
+        - fqdn: api.raindrop.ai
+          ports: [443]
+        - fqdn: query.raindrop.ai
+          ports: [443]
   tool:
     secrets: ["*"]
     tools: []
@@ -45,3 +50,7 @@ sandboxes:
         - fqdn: ai.mongodb.com
           ports: [443]
         - fqdn: "*.ymi8kv.mongodb.net"
+        - fqdn: api.raindrop.ai
+          ports: [443]
+        - fqdn: query.raindrop.ai
+          ports: [443]
