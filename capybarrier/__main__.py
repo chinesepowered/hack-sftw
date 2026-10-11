@@ -98,10 +98,58 @@ def cmd_ae_status(_args) -> None:
     print(json.dumps(agentengine.current_deployment(), indent=2))
 
 
+def _production_record(message: str) -> dict | None:
+    """The deployed agent's log entry for this request, read from Atlas when it is reachable from here (best effort)."""
+    try:
+        from pymongo import MongoClient
+
+        client = MongoClient(config.MONGODB_URI, serverSelectionTimeoutMS=4000)
+        return client[config.DB_NAME].production.find_one({"message": message}, sort=[("ts", -1)])
+    except Exception:
+        return None
+
+
+def explain(record: dict) -> list[str]:
+    """Plain English: why the deployed agent answered the way it did."""
+    lines = [f"harness v{record.get('harness_version')} (the version active in Atlas when the request arrived)"]
+    hits = record.get("runbook_hits") or []
+    door = [h for h in hits if h.get("where") == "guest_message"]
+    data = [h for h in hits if h.get("where") != "guest_message"]
+    if record.get("blocked_by") == "runbook" and door:
+        h = door[0]
+        lines.append(f"stopped at the door: runbook \"{h.get('label')}\", similarity {h.get('score')}, "
+                     f"{str(h.get('served_by', '')).replace('_', ' ')}. No LLM call.")
+    else:
+        lines.append("answered by Kapi's LLM under the harness")
+    for h in data:
+        lines.append(f"hidden instructions found in {str(h.get('where', '')).replace('tool:', '')} data "
+                     f"(runbook \"{h.get('label')}\", similarity {h.get('score')}): {h.get('action')}")
+    for p in record.get("policy_blocks") or []:
+        lines.append(f"tool policy blocked {p.get('tool')}: {p.get('reason')}")
+    for g in record.get("guardrail_hits") or []:
+        lines.append(f"output guardrail: {g.get('label')} ({g.get('where')})")
+    effects = record.get("effects") or {}
+    for r in effects.get("refunds") or []:
+        lines.append(f"action: refunded ${r.get('amount')} on booking {r.get('booking_id')}")
+    for e in effects.get("emails") or []:
+        lines.append(f"action: emailed {e.get('to')}")
+    breaches = record.get("breaches")
+    lines.append("breaches: none" if not breaches else f"BREACH: {', '.join(breaches)}")
+    return lines
+
+
 def cmd_ae_invoke(args) -> None:
     from . import agentengine
 
-    print(json.dumps(agentengine.invoke(args.message, guest=args.guest), indent=2, default=str))
+    # one warm session per guest: repeated calls reuse an instance, and guests never share a conversation
+    session = args.session or f"capybarrier-demo-{args.guest.lower()}"
+    result = agentengine.invoke(args.message, guest=args.guest, session=session)
+    print(f"\nKapi: {result.get('response', json.dumps(result, default=str))}\n")
+    record = _production_record(args.message)
+    if record:
+        for line in explain(record):
+            print(f"  · {line}")
+        print()
 
 
 def cmd_ae_sync(_args) -> None:
@@ -150,9 +198,12 @@ def main() -> None:
     d.add_argument("--no-wait", action="store_true")
     d.set_defaults(fn=cmd_ae_deploy)
     sub.add_parser("ae-status", help="show the current Agent Engine deployment").set_defaults(fn=cmd_ae_status)
-    i = sub.add_parser("ae-invoke", help="send a message to the deployed agent")
+    i = sub.add_parser("ae-invoke", help="send a message to the deployed agent and explain its answer")
     i.add_argument("message")
     i.add_argument("--guest", default="G-103")
+    i.add_argument("--session", default=None,
+                   help="Agent Engine session id (default: one per guest). Each new session holds one of the "
+                        "deployment's instances for 10 minutes, so reuse sessions instead of minting new ones")
     i.set_defaults(fn=cmd_ae_invoke)
     sub.add_parser("ae-sync", help="push the active harness's guardrails and policies to Agent Engine").set_defaults(fn=cmd_ae_sync)
     rd = sub.add_parser("raindrop-intake", help="pull production requests that Raindrop flagged into the evolver's cases")
