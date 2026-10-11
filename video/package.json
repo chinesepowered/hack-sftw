@@ -1,0 +1,9 @@
+{
+  "name": "capybarrier-video",
+  "private": true,
+  "type": "module",
+  "description": "Renders the Capybarrier demo video scenes frame by frame with Playwright.",
+  "dependencies": {
+    "playwright-core": "1.56.1"
+  }
+}

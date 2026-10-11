@@ -6,8 +6,12 @@ against each candidate. A candidate is promoted only with receipts: it must fix 
 breach and must not break any benign task the parent handled. Held out families are measured
 every generation but are never shown to the evolver.
 
-After a fix is promoted, every attack from that generation is memorized in the runbook cache
-(immune memory), so look alike attacks in the future are stopped before they reach the LLM.
+Two layers of runbooks:
+  * runbook_ids: defenses the evolver designed (general patterns it chose to fingerprint)
+  * memory_ids:  immune memory, every survived attack memorized after a generation
+Training and receipts run with immune memory OFF, so the evolver cannot "fix" an attack by simply
+memorizing it; it has to find a defense that generalizes. Memory is an extra layer in production
+and in held out scoring.
 """
 
 from __future__ import annotations
@@ -15,7 +19,7 @@ from __future__ import annotations
 import copy
 import json
 
-from . import config, llm
+from . import agentengine, config, llm
 from .agent import _strip_think
 from .arena import BY_ID, cases
 from .db import db, log_event
@@ -58,7 +62,7 @@ def _brief(h: dict) -> dict:
         "guardrails": [g.get("label") or g["pattern"] for g in h.get("guardrails", [])],
         "tool_policy": h.get("tool_policy"),
         "context_policy": h.get("context_policy"),
-        "runbooks": len(h.get("runbook_ids", [])),
+        "designed_runbooks": len(h.get("runbook_ids", [])),
     }
 
 
@@ -121,11 +125,11 @@ def propose(h: dict, failures: list[dict], benign_failures: list[dict], n_candid
     return []
 
 
-def receipts(candidate: dict, failed_ids: list[str], parent_benign_ok: set[str]) -> dict:
+def receipts(candidate: dict, failed_ids: list[str], parent_benign_ok: set[str], use_memory: bool = False) -> dict:
     """Replay the exact breached episodes and every train benign task against the candidate."""
     benign_ids = [c["id"] for c in cases("train") if c["kind"] == "benign"]
     replay = [BY_ID[i] for i in failed_ids] + [BY_ID[i] for i in benign_ids]
-    traces = run_cases(candidate, replay, label="receipt", record_hits=False, persist=False)
+    traces = run_cases(candidate, replay, label="receipt", record_hits=False, persist=False, use_memory=use_memory)
     fixed = [t["case_id"] for t in traces if t["kind"] == "attack" and t["ok"]]
     still = [t["case_id"] for t in traces if t["kind"] == "attack" and not t["ok"]]
     benign_pass = {t["case_id"] for t in traces if t["kind"] == "benign" and t["ok"]}
@@ -136,9 +140,11 @@ def receipts(candidate: dict, failed_ids: list[str], parent_benign_ok: set[str])
 
 
 def memorize(h: dict, failures: list[dict], gen: int, parent_ok: set[str], log=print) -> dict | None:
-    """Turn this generation's attacks into runbooks (immune memory) and promote them if no benign task breaks."""
-    known = {r["exemplar"] for r in db().runbooks.find({"rid": {"$in": h.get("runbook_ids", [])}}, {"exemplar": 1})}
-    patches = []
+    """Turn this generation's attacks into immune memory and promote it if no benign task breaks."""
+    rids_now = list(h.get("runbook_ids", [])) + list(h.get("memory_ids", []))
+    known = {r["exemplar"] for r in db().runbooks.find({"rid": {"$in": rids_now}}, {"exemplar": 1})}
+    created: list[str] = []
+    sanitize = False
     for t in failures:
         case = BY_ID[t["case_id"]]
         if case.get("poison"):
@@ -148,39 +154,37 @@ def memorize(h: dict, failures: list[dict], gen: int, parent_ok: set[str], log=p
         if text in known:
             continue
         known.add(text)
+        sanitize = sanitize or action == "sanitize"
         label = ", ".join(sorted(set(t.get("breaches") or []))).replace("_", " ") or case["family"]
-        patches.append({"type": "add_runbook", "label": label, "exemplars": [text], "action": action,
-                        "runbook": f"Seen in generation {gen}. Handle by {'refusing the request' if action == 'block' else 'stripping the instructions from tool data'}."})
-    if not patches:
+        created += create_runbooks({"label": label, "exemplars": [text], "action": action,
+                                    "runbook": f"Memorized in generation {gen}. "
+                                               f"{'Refuse the request.' if action == 'block' else 'Strip the hidden instructions from tool data.'}"},
+                                   created_in=gen, source_cases=[t["case_id"]])
+    if not created:
         return None
-    created: list[str] = []
-
-    def make_runbook(patch):
-        rids = create_runbooks(patch, created_in=gen, source_cases=[t["case_id"] for t in failures])
-        created.extend(rids)
-        return rids
-
-    new_h, applied = apply_patches(h, patches, make_runbook)
-    if any(p["action"] == "sanitize" for p in patches):
+    new_h = copy.deepcopy({k: v for k, v in h.items() if k not in ("_id", "active", "created_at", "receipts", "metrics", "patches")})
+    new_h["memory_ids"] = list(h.get("memory_ids", [])) + created
+    if sanitize:
         new_h["context_policy"]["scan_tool_outputs"] = True
     wait_searchable(created)
-    rec = receipts(new_h, [], parent_ok)
+    rec = receipts(new_h, [], parent_ok, use_memory=True)
     if rec["benign_broken_ids"]:
         log(f"  immune memory update would block benign tasks {rec['benign_broken_ids']}, discarded")
         set_status(created, "rejected")
         return None
     new_h.update({"parent_version": h["version"], "created_by": "evolver",
                   "rationale": f"Immune memory: memorized {len(created)} attack fingerprints from generation {gen}.",
-                  "patches": applied, "receipts": {**rec, "memorized": len(created)}, "metrics": {}})
+                  "patches": [{"type": "memorize", "count": len(created)}], "receipts": {**rec, "memorized": len(created)},
+                  "metrics": {}})
     promoted = promote(new_h)
     set_status(created, "active")
     log(f"  promoted v{promoted['version']}: memorized {len(created)} attack fingerprints, benign {rec['benign_passed']}/{rec['benign_total']} still pass")
     return promoted
 
 
-def run_generation(gen: int, n_candidates: int, heldout: bool = True, log=print) -> dict:
+def run_generation(gen: int, n_candidates: int, heldout: bool = True, ship: bool = False, log=print) -> dict:
     h = get_active()
-    train = run_cases(h, cases("train"), generation=gen, label="train")
+    train = run_cases(h, cases("train"), generation=gen, label="train", use_memory=False)
     s_train = summarize(train)
     record_generation(gen, h["version"], "train", s_train)
     s_held = None
@@ -188,7 +192,7 @@ def run_generation(gen: int, n_candidates: int, heldout: bool = True, log=print)
         held = run_cases(h, cases("heldout"), generation=gen, label="heldout")
         s_held = summarize(held)
         record_generation(gen, h["version"], "heldout", s_held)
-    log(f"gen {gen} | harness v{h['version']} | train ASR {s_train['asr']} util {s_train['utility']}"
+    log(f"gen {gen} | harness v{h['version']} | train (memory off) ASR {s_train['asr']} util {s_train['utility']}"
         + (f" | heldout ASR {s_held['asr']} util {s_held['utility']} runbook catch {s_held['runbook_catch_rate']}" if s_held else ""))
 
     result = {"generation": gen, "version": h["version"], "train": s_train, "heldout": s_held, "promoted": None}
@@ -256,14 +260,23 @@ def run_generation(gen: int, n_candidates: int, heldout: bool = True, log=print)
     remembered = memorize(copy.deepcopy(get_active()), failures, gen, parent_ok, log=log)
     if remembered is not None:
         result["promoted"] = remembered["version"]
+    if result["promoted"] is not None:
+        active = get_active()
+        agentengine.sync(active, log=lambda m: log(f"  {m}"))
+        if ship and agentengine.configured():
+            try:
+                agentengine.build(f"capybarrier v{active['version']} (written by v{h['version']})", auto_deploy=True,
+                                  wait=False, log=lambda m: log(f"  shipped: {m}"))
+            except Exception as exc:
+                log(f"  ship skipped: {exc}")
     return result
 
 
-def evolve(generations: int = 4, n_candidates: int = 3, log=print) -> list[dict]:
+def evolve(generations: int = 4, n_candidates: int = 3, ship: bool = False, log=print) -> list[dict]:
     results = []
     gen = next_generation()
     for _ in range(generations):
-        res = run_generation(gen, n_candidates, log=log)
+        res = run_generation(gen, n_candidates, ship=ship, log=log)
         results.append(res)
         gen += 1
         if res["promoted"] is None and res["train"]["asr"] == 0:

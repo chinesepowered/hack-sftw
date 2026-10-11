@@ -1,0 +1,34 @@
+name: capybarrier
+description: Kapi, the CapySpa concierge, protected by Capybarrier, an adaptive immune system that rewrites its own harness. Every request runs the harness version that is currently active in MongoDB Atlas.
+entrypoint: capybarrier_agent.main:app
+framework: langgraph
+language: python
+
+agent_card:
+  summary: CapySpa concierge with a self evolving immune system
+  capabilities:
+    - bookings
+    - refunds
+    - email
+    - prompt-injection-defense
+    - self-improving-harness
+
+features:
+  guardrails: true
+
+scaling:
+  replicas: 2
+  agent_idle_ttl_seconds: 300
+
+sandboxes:
+  agent:
+    secrets: ["*"]
+    tools: []
+    network:
+      egress_mode: allow_list
+      egress:
+        - fqdn: api.inference.wandb.ai
+          ports: [443]
+        - fqdn: ai.mongodb.com
+          ports: [443]
+        - fqdn: "*.ymi8kv.mongodb.net"

@@ -9,6 +9,7 @@ from . import config
 from .agent import run_episode
 from .arena import benign_ok
 from .db import db
+from .harness import all_runbook_ids
 from .runbooks import RunbookCache
 
 
@@ -31,8 +32,8 @@ def score(case: dict, trace: dict) -> dict:
 
 
 def run_cases(h: dict, case_list: list[dict], *, generation: int | None = None, label: str = "eval",
-              record_hits: bool = True, persist: bool = True) -> list[dict]:
-    cache = RunbookCache(h.get("runbook_ids", []))
+              record_hits: bool = True, persist: bool = True, use_memory: bool = True) -> list[dict]:
+    cache = RunbookCache(all_runbook_ids(h, use_memory))
     if cache.mode == "local":
         cache._load()  # load once before threads share it
 

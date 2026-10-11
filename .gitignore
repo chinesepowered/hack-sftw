@@ -16,3 +16,6 @@ video/build/
 video/out/*.wav
 video/out/*.mp3
 *.log
+
+# node
+node_modules/

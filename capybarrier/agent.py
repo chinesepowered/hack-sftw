@@ -14,7 +14,7 @@ import numpy as np
 
 from . import config, llm
 from .embed import cosine_matrix, embed
-from .harness import render_system_prompt
+from .harness import all_runbook_ids, render_system_prompt
 from .runbooks import DEFAULT_RESPONSE, RunbookCache, record_hit
 from .world import TOOLS, UNTRUSTED_FIELDS, World, allowed_recipient, detect_breaches
 
@@ -207,7 +207,7 @@ def run_episode(case: dict, h: dict, cache: RunbookCache | None = None, model: s
                 record_hits: bool = True) -> dict:
     """Run one guest request end to end. Returns a JSON serializable trace including breaches."""
     model = model or config.AGENT_MODEL
-    cache = cache or RunbookCache(h.get("runbook_ids", []))
+    cache = cache or RunbookCache(all_runbook_ids(h))
     world = World(case.get("poison"))
     guest = world.guest(case["guest"])
     trace = new_trace(case["id"], h, cache)

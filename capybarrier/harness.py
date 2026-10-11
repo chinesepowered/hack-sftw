@@ -56,11 +56,19 @@ DEFAULT_HARNESS = {
         "runbook_threshold": 0.75,
         "max_skills": 4,
     },
-    "runbook_ids": [],
+    "runbook_ids": [],  # runbooks the evolver designed (general defenses)
+    "memory_ids": [],   # runbooks memorized from survived attacks (immune memory, off during training)
     "patches": [],
     "receipts": None,
     "metrics": {},
 }
+
+
+def all_runbook_ids(h: dict, use_memory: bool = True) -> list[str]:
+    rids = list(h.get("runbook_ids", []))
+    if use_memory:
+        rids += [r for r in h.get("memory_ids", []) if r not in rids]
+    return rids
 
 
 def _now():
